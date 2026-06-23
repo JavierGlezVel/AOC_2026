@@ -1,19 +1,19 @@
-# Dia 1
+# Día 1
 
 ## Problema
 
 El problema plantea una caja fuerte con un dial circular numerado del `0` al `99`.
-El dial empieza en la posicion `50` y recibe una lista de rotaciones, una por linea.
-Cada rotacion empieza por:
+El dial empieza en la posición `50` y recibe una lista de rotaciones, una por línea.
+Cada rotación empieza por:
 
-- `L`: giro hacia la izquierda, hacia numeros menores.
-- `R`: giro hacia la derecha, hacia numeros mayores.
+- `L`: giro hacia la izquierda, hacia números menores.
+- `R`: giro hacia la derecha, hacia números mayores.
 
-Despues aparece el numero de clicks que debe avanzar el dial. Como el dial es
+Después aparece el número de clicks que debe avanzar el dial. Como el dial es
 circular, al girar a la izquierda desde `0` se pasa a `99`, y al girar a la derecha
 desde `99` se pasa a `0`.
 
-La entrada esta en:
+La entrada está en:
 
 ```text
 src/main/resources/input.txt
@@ -21,33 +21,33 @@ src/main/resources/input.txt
 
 ## Parte 1
 
-En la primera parte se pide contar cuantas veces el dial queda apuntando a `0`
-despues de completar una rotacion.
+En la primera parte se pide contar cuántas veces el dial queda apuntando a `0`
+después de completar una rotación.
 
-La solucion modela el dial como un objeto con estado interno:
+La solución modela el dial como un objeto con estado interno:
 
 ```java
 private int position = 50;
 ```
 
-Cada rotacion actualiza la posicion usando aritmetica modular:
+Cada rotación actualiza la posición usando aritmética modular:
 
 ```java
 position = (position - steps % 100 + 100) % 100;
 position = (position + steps) % 100;
 ```
 
-Despues de cada rotacion, `PasswordCalculatorPart1` comprueba si la posicion final
+Después de cada rotación, `PasswordCalculatorPart1` comprueba si la posición final
 es `0` y, en ese caso, incrementa el contador.
 
 Con el ejemplo del enunciado, la parte 1 devuelve `3`.
 
 ## Parte 2
 
-En la segunda parte aparece un nuevo documento de seguridad. El metodo
-`0x434C49434B` cambia la forma de calcular la password: ahora hay que contar el
-numero de veces que cualquier click hace que el dial apunte a `0`, tanto si ocurre al
-final de una rotacion como si ocurre durante la rotacion.
+En la segunda parte aparece un nuevo documento de seguridad. El método
+`0x434C49434B` cambia la forma de calcular la contraseña: ahora hay que contar el
+número de veces que cualquier click hace que el dial apunte a `0`, tanto si ocurre al
+final de una rotación como si ocurre durante la rotación.
 
 Con las mismas rotaciones del ejemplo de la parte 1:
 
@@ -64,38 +64,38 @@ R14
 L82
 ```
 
-El dial termina en `0` tres veces, como en la parte 1. Ademas, durante algunas
+El dial termina en `0` tres veces, como en la parte 1. Además, durante algunas
 rotaciones pasa por `0` otras tres veces:
 
-- `L68`: pasa por `0` una vez durante la rotacion.
-- `R60`: pasa por `0` una vez durante la rotacion.
-- `L82`: pasa por `0` una vez durante la rotacion.
+- `L68`: pasa por `0` una vez durante la rotación.
+- `R60`: pasa por `0` una vez durante la rotación.
+- `L82`: pasa por `0` una vez durante la rotación.
 
 Por tanto, el resultado del ejemplo para la parte 2 es `6`.
 
-`PasswordCalculatorPart2` cuenta los cruces por `0` antes de aplicar la rotacion al
-dial. Para evitar simular click a click, calcula matematicamente cuantos ceros se
-cruzan segun:
+`PasswordCalculatorPart2` cuenta los cruces por `0` antes de aplicar la rotación al
+dial. Para evitar simular click a click, calcula matemáticamente cuántos ceros se
+cruzan según:
 
-- posicion inicial del dial;
-- direccion de la rotacion;
-- numero total de clicks.
+- posición inicial del dial;
+- dirección de la rotación;
+- número total de clicks.
 
-Ejemplo: desde `50`, una rotacion `R1000` pasa por `0` diez veces antes de volver a
+Ejemplo: desde `50`, una rotación `R1000` pasa por `0` diez veces antes de volver a
 `50`. Esto coincide con la advertencia del enunciado: no basta con comprobar la
-posicion final de la rotacion.
+posición final de la rotación.
 
-Otro ejemplo mas pequeno: desde `50`, una rotacion `R250` pasa por `0` tres veces:
+Otro ejemplo más pequeño: desde `50`, una rotación `R250` pasa por `0` tres veces:
 
 - al llegar a `0` por primera vez;
 - tras una vuelta completa;
 - tras otra vuelta completa.
 
-Por eso el test de esa rotacion espera `3`.
+Por eso el test de esa rotación espera `3`.
 
-## Diseno de clases
+## Diseño de clases
 
-La solucion esta dividida en tres paquetes:
+La solución está dividida en tres paquetes:
 
 ```text
 application/
@@ -107,8 +107,8 @@ infrastructure/
 
 Contiene las reglas del problema.
 
-- `Dial`: representa el dial circular y encapsula su posicion.
-- `Rotation`: representa una orden de giro con direccion y numero de pasos.
+- `Dial`: representa el dial circular y encapsula su posición.
+- `Rotation`: representa una orden de giro con dirección y número de pasos.
 - `PasswordCalculatorPart1`: calcula la respuesta de la primera parte.
 - `PasswordCalculatorPart2`: calcula la respuesta de la segunda parte.
 
@@ -116,34 +116,38 @@ Contiene las reglas del problema.
 
 Coordina el caso de uso.
 
-- `RotationParser`: transforma las lineas del fichero en objetos `Rotation`.
-- `SafeSolver`: obtiene las lineas de entrada, las parsea y delega el calculo en la clase correspondiente.
+- `RotationParser`: transforma las líneas del fichero en objetos `Rotation`.
+- `SafeSolver`: obtiene las líneas de entrada, las parsea y delega el cálculo en la clase correspondiente.
 
 ### `infrastructure`
 
 Contiene los detalles externos al dominio.
 
-- `RotationSource`: interfaz para obtener las lineas de entrada.
-- `FileRotationSource`: implementacion que lee las rotaciones desde un fichero.
+- `RotationSource`: interfaz para obtener las líneas de entrada.
+- `FileRotationSource`: implementación que lee las rotaciones desde un fichero.
 
-## Principios de Ingenieria del Software II aplicados
+## Principios aplicados
 
-### Abstraccion
+### Abstracción
 
-La teoria define la abstraccion como ocultar detalles complejos detras de una interfaz
-simple. En esta solucion, el dominio trabaja con conceptos del problema:
+La abstracción consiste en representar solo lo esencial de un concepto y ocultar los
+detalles que no necesita conocer quien lo utiliza. En esta solución, el dominio trabaja
+con conceptos propios del problema:
 
 - dial;
-- rotacion;
-- calculador de password;
+- rotación;
+- calculador de contraseña;
 - fuente de rotaciones.
 
-El resto del codigo no necesita conocer como se leen los ficheros ni como se calcula
-internamente el modulo del dial.
+El resto del código no necesita conocer cómo se leen los ficheros ni cómo se calcula
+internamente el módulo del dial. Por ejemplo, quien usa `Dial` solo necesita llamar a
+`rotate`, no conocer la fórmula exacta de actualización de la posición.
 
-### Diseno por contrato
+### Diseño por contrato
 
-`Rotation` actua como objeto de valor y valida su propio contrato:
+El diseño por contrato consiste en dejar claras las condiciones que debe cumplir un
+objeto para ser válido y poder usarse con seguridad. `Rotation` actúa como objeto de
+valor y valida su propio contrato:
 
 ```java
 if (direction != 'L' && direction != 'R') {
@@ -154,28 +158,36 @@ if (steps < 0) {
 }
 ```
 
-Esto deja claro que una rotacion valida solo puede tener direccion `L` o `R`, y que
+Esto deja claro que una rotación válida solo puede tener dirección `L` o `R`, y que
 los pasos no pueden ser negativos. El resto del dominio puede confiar en esa
-precondicion.
+precondición y no repetir la misma validación en cada clase.
 
-### Alta cohesion y SRP
+### Alta cohesión y SRP
 
-La teoria de cohesion y SRP indica que una clase debe tener una sola responsabilidad
-y una unica razon para cambiar. En esta solucion:
+Una clase tiene alta cohesión cuando todos sus métodos y datos están relacionados
+con una misma responsabilidad. El principio de responsabilidad única refuerza esta
+idea: cada clase debe tener una sola razón principal para cambiar.
 
-- `Dial` solo sabe moverse y exponer su posicion.
+En esta solución:
+
+- `Dial` solo sabe moverse y exponer su posición.
 - `RotationParser` solo parsea texto.
-- `FileRotationSource` solo lee lineas de un fichero.
+- `FileRotationSource` solo lee líneas de un fichero.
 - `PasswordCalculatorPart1` solo resuelve la parte 1.
 - `PasswordCalculatorPart2` solo resuelve la parte 2.
-- `SafeSolver` solo coordina el flujo de la aplicacion.
+- `SafeSolver` solo coordina el flujo de la aplicación.
 
 Esto evita que una clase concentre lectura de ficheros, parseo, reglas del dial y
-salida por consola.
+salida por consola. Cada cambio queda localizado en la clase que tiene esa
+responsabilidad.
 
 ### Bajo acoplamiento
 
-`SafeSolver` depende de la abstraccion `RotationSource`, no directamente de
+El bajo acoplamiento busca que las clases dependan lo menos posible de detalles
+concretos de otras clases. Así, un cambio interno en una pieza afecta menos al resto
+del sistema.
+
+`SafeSolver` depende de la abstracción `RotationSource`, no directamente de
 `FileRotationSource`:
 
 ```java
@@ -184,62 +196,71 @@ public SafeSolver(RotationSource source) {
 }
 ```
 
-Esto permite cambiar el origen de datos sin modificar la logica de aplicacion. Por
-ejemplo, se podria crear una fuente en memoria para tests o una fuente que lea desde
+Esto permite cambiar el origen de datos sin modificar la lógica de aplicación. Por
+ejemplo, se podría crear una fuente en memoria para tests o una fuente que lea desde
 red.
 
-### Inversion de dependencias e inyeccion de dependencias
+### Inversión de dependencias e inyección de dependencias
 
-La dependencia de entrada se inyecta por constructor. Esto separa la creacion del
-objeto concreto (`FileRotationSource`) de su uso (`SafeSolver`). Es una aplicacion
-sencilla del principio de inversion de dependencias: la logica de alto nivel trabaja
-contra una interfaz.
+La inversión de dependencias consiste en que la lógica de alto nivel dependa de
+abstracciones, no de implementaciones concretas. Aquí `SafeSolver` depende de la
+interfaz `RotationSource`.
+
+La inyección de dependencias aparece porque esa dependencia se recibe por
+constructor. Esto separa la creación del objeto concreto (`FileRotationSource`) de su
+uso (`SafeSolver`), haciendo que el caso de uso sea más flexible y fácil de probar.
 
 ### Modularidad
 
-La division en paquetes separa responsabilidades:
+La modularidad consiste en dividir el sistema en piezas con responsabilidades claras
+que puedan entenderse, cambiarse y reutilizarse de forma independiente.
+
+La división en paquetes separa responsabilidades:
 
 - `domain`: reglas puras del problema.
-- `application`: orquestacion.
-- `infrastructure`: detalles tecnicos de entrada.
+- `application`: orquestación.
+- `infrastructure`: detalles técnicos de entrada.
 
-Esto hace que el codigo sea mas facil de extender para otros dias o para nuevas
+Esto hace que el código sea más fácil de extender para otros días o para nuevas
 formas de entrada.
 
 ### Polimorfismo
 
-El uso de la interfaz `RotationSource` permite tratar cualquier implementacion como
-una fuente de rotaciones. `FileRotationSource` es la implementacion actual, pero el
-codigo cliente solo necesita conocer el contrato de la interfaz.
+El polimorfismo permite trabajar con objetos distintos a través de un mismo tipo
+común. En este caso, el tipo común es la interfaz `RotationSource`.
 
-## Patrones y tecnicas usadas
+`FileRotationSource` es la implementación actual, pero el código cliente solo conoce
+el contrato de `RotationSource`. Si en el futuro se añade otra implementación, como
+`InMemoryRotationSource`, `SafeSolver` podría usarla sin cambiar su código.
+
+## Patrones y técnicas usadas
 
 ### Repository / Source
 
-`RotationSource` funciona como una abstraccion de acceso a datos. No es un patron
+`RotationSource` funciona como una abstracción de acceso a datos. No es un patrón
 GoF estricto, pero sigue la idea habitual de aislar el origen de los datos para que el
 dominio no dependa del sistema de ficheros.
 
 ### Value Object
 
 `Rotation` se modela como `record`, por lo que representa un dato del dominio con
-identidad basada en sus valores (`direction` y `steps`). Ademas, concentra la
-validacion de una rotacion valida.
+identidad basada en sus valores (`direction` y `steps`). Además, concentra la
+validación de una rotación válida.
 
 ### Service
 
-`PasswordCalculatorPart1` y `PasswordCalculatorPart2` actuan como servicios de
+`PasswordCalculatorPart1` y `PasswordCalculatorPart2` actúan como servicios de
 dominio: no representan entidades con identidad propia, sino operaciones del dominio
-que calculan el password a partir de una lista de rotaciones.
+que calculan la contraseña a partir de una lista de rotaciones.
 
 ### Fachada de caso de uso
 
-`SafeSolver` ofrece metodos simples (`solvePart1` y `solvePart2`) que ocultan los
+`SafeSolver` ofrece métodos simples (`solvePart1` y `solvePart2`) que ocultan los
 pasos internos: leer entrada, parsear rotaciones y calcular la respuesta.
 
 ## Tests
 
-Los tests estan en:
+Los tests están en:
 
 ```text
 src/test/java/domain/
@@ -251,21 +272,21 @@ Cubren:
 - el ejemplo oficial de la parte 2, cuyo resultado esperado es `6`;
 - el comportamiento de la parte 2 con varias vueltas completas (`R250` y `R1000`).
 
-Para ejecutar los tests desde la raiz del repositorio:
+Para ejecutar los tests desde la raíz del repositorio:
 
 ```bash
 mvn test
 ```
 
-## Ejecucion
+## Ejecución
 
-Desde la raiz del repositorio:
+Desde la raíz del repositorio:
 
 ```bash
 mvn -pl dia1 compile
 ```
 
-Tambien se puede ejecutar `Main` desde IntelliJ. Si se ejecuta desde la carpeta raiz
+También se puede ejecutar `Main` desde IntelliJ. Si se ejecuta desde la carpeta raíz
 `AOC`, el programa busca el input en:
 
 ```text
