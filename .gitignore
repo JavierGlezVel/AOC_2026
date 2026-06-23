@@ -1,0 +1,43 @@
+# Maven
+target/
+build/
+out/
+
+*.class
+*.jar
+*.war
+*.ear
+
+# Maven local/release files
+dependency-reduced-pom.xml
+release.properties
+pom.xml.versionsBackup
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and temp files
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Environment/local configuration
+.env
+.env.*
+!.env.example
