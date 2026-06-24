@@ -1,6 +1,6 @@
 package application;
 
-import domain.ProductIdRange;
+import domain.common.ProductIdRange;
 
 import java.util.ArrayList;
 import java.util.List;

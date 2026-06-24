@@ -1,4 +1,7 @@
-package domain;
+package domain.part2;
+
+import domain.common.Dial;
+import domain.common.Rotation;
 
 import java.util.List;
 

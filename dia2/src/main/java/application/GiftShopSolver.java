@@ -1,7 +1,7 @@
 package application;
 
-import domain.InvalidProductIdSumCalculatorPart1;
-import domain.InvalidProductIdSumCalculatorPart2;
+import domain.part1.InvalidProductIdSumCalculatorPart1;
+import domain.part2.InvalidProductIdSumCalculatorPart2;
 import infrastructure.RangeSource;
 
 import java.io.IOException;

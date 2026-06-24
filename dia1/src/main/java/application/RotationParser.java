@@ -1,6 +1,6 @@
 package application;
 
-import domain.Rotation;
+import domain.common.Rotation;
 
 import java.util.ArrayList;
 import java.util.List;

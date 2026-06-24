@@ -12,6 +12,7 @@
     <modules>
         <module>dia1</module>
         <module>dia2</module>
+        <module>dia3</module>
     </modules>
 
     <properties>

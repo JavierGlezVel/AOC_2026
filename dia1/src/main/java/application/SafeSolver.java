@@ -1,7 +1,7 @@
 package application;
 
-import domain.PasswordCalculatorPart1;
-import domain.PasswordCalculatorPart2;
+import domain.part1.PasswordCalculatorPart1;
+import domain.part2.PasswordCalculatorPart2;
 import infrastructure.RotationSource;
 
 import java.io.IOException;

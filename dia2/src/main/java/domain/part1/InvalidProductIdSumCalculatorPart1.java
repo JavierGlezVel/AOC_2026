@@ -1,4 +1,7 @@
-package domain;
+package domain.part1;
+
+import domain.common.InvalidProductIdSumCalculator;
+import domain.common.ProductIdRange;
 
 import java.util.List;
 

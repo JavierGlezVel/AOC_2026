@@ -120,23 +120,36 @@ pero solo debe sumarse una vez.
 
 ## Diseño de clases
 
-La solución está dividida en tres paquetes:
+La solución está dividida en tres paquetes principales:
 
 ```text
 application/
 domain/
+  common/
+  part1/
+  part2/
 infrastructure/
 ```
 
-### `domain`
+### `domain/common`
 
-Contiene las reglas del problema.
+Contiene conceptos y servicios compartidos por ambas partes.
 
 - `ProductIdRange`: representa un rango cerrado de IDs.
-- `RepeatedTwiceProductIdGenerator`: genera IDs formados por un bloque repetido exactamente dos veces.
-- `RepeatedAtLeastTwiceProductIdGenerator`: genera IDs formados por un bloque repetido dos o más veces.
 - `InvalidProductIdSumCalculator`: contiene la lógica común para sumar candidatos dentro de los rangos.
+
+### `domain/part1`
+
+Contiene la regla específica de la primera parte.
+
+- `RepeatedTwiceProductIdGenerator`: genera IDs formados por un bloque repetido exactamente dos veces.
 - `InvalidProductIdSumCalculatorPart1`: calcula la suma de IDs inválidos de la parte 1.
+
+### `domain/part2`
+
+Contiene la regla específica de la segunda parte.
+
+- `RepeatedAtLeastTwiceProductIdGenerator`: genera IDs formados por un bloque repetido dos o más veces.
 - `InvalidProductIdSumCalculatorPart2`: calcula la suma de IDs inválidos de la parte 2.
 
 ### `application`
@@ -230,7 +243,9 @@ distintas fuentes de datos.
 ### Modularidad
 
 La división en paquetes separa las reglas del problema, la coordinación de la
-aplicación y los detalles técnicos de entrada.
+aplicación y los detalles técnicos de entrada. Dentro de `domain`, `common` contiene
+lo compartido, mientras `part1` y `part2` dejan visible qué clases pertenecen a cada
+mitad del reto.
 
 Esta estructura permite añadir nuevas reglas, como la parte 2, sin modificar piezas
 que no tienen relación con esa regla.

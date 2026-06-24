@@ -1,6 +1,7 @@
-package domain;
+package domain.part2;
 
 import application.ProductIdRangeParser;
+import domain.common.ProductIdRange;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

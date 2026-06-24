@@ -1,4 +1,4 @@
-package domain;
+package domain.common;
 
 public record ProductIdRange(long firstId, long lastId) {
     public ProductIdRange {

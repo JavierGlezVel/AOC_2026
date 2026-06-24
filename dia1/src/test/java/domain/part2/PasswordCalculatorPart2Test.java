@@ -1,6 +1,7 @@
-package domain;
+package domain.part2;
 
 import application.RotationParser;
+import domain.common.Rotation;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

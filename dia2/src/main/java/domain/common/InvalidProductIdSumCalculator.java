@@ -1,4 +1,4 @@
-package domain;
+package domain.common;
 
 import java.util.Collection;
 import java.util.List;

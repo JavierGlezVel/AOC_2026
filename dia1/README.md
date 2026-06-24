@@ -95,21 +95,34 @@ Por eso el test de esa rotación espera `3`.
 
 ## Diseño de clases
 
-La solución está dividida en tres paquetes:
+La solución está dividida en tres paquetes principales:
 
 ```text
 application/
 domain/
+  common/
+  part1/
+  part2/
 infrastructure/
 ```
 
-### `domain`
+### `domain/common`
 
-Contiene las reglas del problema.
+Contiene conceptos compartidos por ambas partes.
 
 - `Dial`: representa el dial circular y encapsula su posición.
 - `Rotation`: representa una orden de giro con dirección y número de pasos.
+
+### `domain/part1`
+
+Contiene la regla específica de la primera parte.
+
 - `PasswordCalculatorPart1`: calcula la respuesta de la primera parte.
+
+### `domain/part2`
+
+Contiene la regla específica de la segunda parte.
+
 - `PasswordCalculatorPart2`: calcula la respuesta de la segunda parte.
 
 ### `application`
@@ -217,12 +230,14 @@ que puedan entenderse, cambiarse y reutilizarse de forma independiente.
 
 La división en paquetes separa responsabilidades:
 
-- `domain`: reglas puras del problema.
+- `domain/common`: conceptos compartidos por ambas partes.
+- `domain/part1`: regla específica de la primera parte.
+- `domain/part2`: regla específica de la segunda parte.
 - `application`: orquestación.
 - `infrastructure`: detalles técnicos de entrada.
 
-Esto hace que el código sea más fácil de extender para otros días o para nuevas
-formas de entrada.
+Esto hace que el código sea más fácil de extender para otros días, nuevas partes o
+nuevas formas de entrada.
 
 ### Polimorfismo
 
@@ -263,7 +278,8 @@ pasos internos: leer entrada, parsear rotaciones y calcular la respuesta.
 Los tests están en:
 
 ```text
-src/test/java/domain/
+src/test/java/domain/part1/
+src/test/java/domain/part2/
 ```
 
 Cubren:
