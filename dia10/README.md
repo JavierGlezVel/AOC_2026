@@ -90,6 +90,153 @@ gaussiana exacta usando fracciones, y enumera solo las variables libres. En este
 input, cada máquina deja como máximo tres variables libres, así que la búsqueda es
 exacta y acotada.
 
+## Resolución detallada
+
+### Parte 1
+
+Cada máquina se representa con una máscara de bits: cada luz ocupa un bit y cada
+botón indica qué luces cambia. Pulsar un botón equivale a aplicar XOR sobre la
+máscara actual. La parte 1 busca el subconjunto de botones con menor número de
+pulsaciones que deja la máquina en la máscara objetivo.
+
+La solución enumera todos los subconjuntos posibles de botones. Si una combinación
+ya usa más pulsaciones que la mejor conocida, se descarta antes de calcular su
+resultado:
+
+```java
+int bestPresses = Integer.MAX_VALUE;
+int buttonCount = machine.buttonMasks().size();
+int combinations = 1 << buttonCount;
+
+for (int combination = 0; combination < combinations; combination++) {
+    int currentMask = 0;
+    int presses = Integer.bitCount(combination);
+    if (presses >= bestPresses) {
+        continue;
+    }
+
+    for (int button = 0; button < buttonCount; button++) {
+        if ((combination & (1 << button)) != 0) {
+            currentMask ^= machine.buttonMasks().get(button);
+        }
+    }
+
+    if (currentMask == machine.targetMask()) {
+        bestPresses = presses;
+    }
+}
+```
+
+La respuesta del día es la suma del mínimo de pulsaciones de cada máquina:
+
+```java
+return machines.stream()
+        .mapToInt(this::minimumPresses)
+        .sum();
+```
+
+### Parte 2
+
+La segunda parte deja de ser una búsqueda de botones pulsados una vez. Ahora cada
+botón puede pulsarse varias veces para alcanzar requisitos de voltaje. El problema
+se modela como un sistema lineal: cada contador es una ecuación y cada botón es una
+variable que suma `1` a los contadores a los que afecta.
+
+La matriz aumentada se construye con `1` si el botón afecta a un contador y `0` en
+caso contrario; la última columna contiene el requisito de voltaje:
+
+```java
+for (int counter = 0; counter < counterCount; counter++) {
+    for (int button = 0; button < buttonCount; button++) {
+        boolean affectsCounter =
+                (machine.buttonMasks().get(button) & (1 << counter)) != 0;
+        matrix[counter][button] = Fraction.of(affectsCounter ? 1 : 0);
+    }
+    matrix[counter][buttonCount] =
+            Fraction.of(machine.joltageRequirements().get(counter));
+}
+```
+
+Después se aplica eliminación gaussiana para obtener columnas pivote y columnas
+libres. Se usan fracciones exactas para no perder precisión:
+
+```java
+Fraction pivotValue = matrix[rank][column];
+for (int currentColumn = 0; currentColumn <= buttonCount; currentColumn++) {
+    matrix[rank][currentColumn] =
+            matrix[rank][currentColumn].divide(pivotValue);
+}
+
+for (int row = 0; row < counterCount; row++) {
+    if (row == rank || matrix[row][column].isZero()) {
+        continue;
+    }
+    Fraction factor = matrix[row][column];
+    for (int currentColumn = 0; currentColumn <= buttonCount; currentColumn++) {
+        matrix[row][currentColumn] = matrix[row][currentColumn]
+                .subtract(factor.multiply(matrix[rank][currentColumn]));
+    }
+}
+```
+
+Si quedan variables libres, se enumeran sus valores posibles. Para cada asignación
+se calculan las variables pivote, y solo se aceptan soluciones enteras, no negativas
+y mejores que la mejor ya encontrada:
+
+```java
+if (!value.isInteger() || value.isNegative()) {
+    return NO_SOLUTION;
+}
+
+totalPresses += value.asLong();
+if (totalPresses >= best) {
+    return NO_SOLUTION;
+}
+```
+
+Así la parte 2 combina álgebra lineal para reducir el espacio de búsqueda y una
+enumeración acotada para escoger la solución con menos pulsaciones.
+
+## Uso de Streams
+
+En este día los Streams se usan para parsear máquinas y para sumar el resultado de
+cada máquina en las dos partes.
+
+El parser convierte cada línea del manual en un `FactoryMachine`:
+
+```java
+return lines.stream()
+        .map(this::parseLine)
+        .toList();
+```
+
+El stream recorre las líneas de entrada. `map(this::parseLine)` transforma cada línea
+en una máquina validada, y `toList()` devuelve la lista final que usan los
+calculadores.
+
+La parte 1 suma el mínimo de pulsaciones de todas las máquinas:
+
+```java
+return machines.stream()
+        .mapToInt(this::minimumPresses)
+        .sum();
+```
+
+`mapToInt` aplica el algoritmo de enumeración de subconjuntos a cada máquina y
+obtiene un entero. `sum()` suma esos mínimos para producir la respuesta de la parte 1.
+
+La parte 2 usa la misma idea, pero con `long`, porque el sistema de voltajes puede
+producir resultados mayores:
+
+```java
+return machines.stream()
+        .mapToLong(this::minimumPresses)
+        .sum();
+```
+
+Cada elemento se transforma en el mínimo de pulsaciones calculado mediante el sistema
+lineal, y `sum()` acumula el total de todas las máquinas.
+
 ## Diseño de clases
 
 La solución está dividida en tres paquetes principales:
@@ -138,37 +285,64 @@ Contiene los detalles externos al dominio.
 - `FactoryMachineSource`: interfaz para obtener las líneas de entrada.
 - `FileFactoryMachineSource`: implementación que lee las máquinas desde un fichero.
 
+## Diagrama de clases
+
+```mermaid
+classDiagram
+    class Main
+    class FactorySolver {
+        +solvePart1() long
+        +solvePart2() long
+    }
+    class FactoryMachineParser {
+        +parse(List~String~) List~FactoryMachine~
+    }
+    class FactoryMachineSource {
+        <<interface>>
+        +getLines() List~String~
+    }
+    class FileFactoryMachineSource {
+        +getLines() List~String~
+    }
+    class FactoryMachine
+    class MinimumButtonPressesCalculatorPart1
+    class MinimumJoltageButtonPressesCalculatorPart2
+    class Fraction {
+        +of(long) Fraction
+    }
+
+    Main --> FactorySolver
+    Main --> FileFactoryMachineSource
+    FileFactoryMachineSource ..|> FactoryMachineSource
+    FactorySolver --> FactoryMachineSource
+    FactorySolver --> FactoryMachineParser
+    FactoryMachineParser --> FactoryMachine
+    MinimumButtonPressesCalculatorPart1 --> FactoryMachine
+    MinimumJoltageButtonPressesCalculatorPart2 --> FactoryMachine
+    MinimumJoltageButtonPressesCalculatorPart2 --> Fraction
+```
+
 ## Principios aplicados
 
-### Abstracción
+### Principio de Responsabilidad Única (SRP)
 
-El dominio trabaja con conceptos propios del problema: máquina, luces objetivo y
-botones. La lógica no depende de rutas de ficheros ni de consola.
+`FactoryMachineParser` parsea máquinas, `FactoryMachine` representa una máquina válida, `MinimumButtonPressesCalculatorPart1` enumera combinaciones de botones, `MinimumJoltageButtonPressesCalculatorPart2` resuelve el sistema de voltajes y `FactorySolver` coordina.
 
-### Diseño por contrato
+### Principio Abierto/Cerrado (OCP)
 
-`FactoryMachineParser` rechaza líneas que no tengan la estructura esperada y botones
-que referencien luces fuera de rango. `FactoryMachine` exige al menos una luz, al
-menos un botón y máscaras coherentes con el número de luces.
+La parte 2 añade una resolución algebraica nueva sin modificar la calculadora de la parte 1. `FactoryMachine` queda como modelo común estable para ambas reglas.
 
-### Alta cohesión y SRP
+### Principio de Sustitución de Liskov (LSP)
 
-Cada clase tiene una responsabilidad concreta:
+`FactorySolver` depende de `FactoryMachineSource`. Una fuente alternativa compatible puede reemplazar a `FileFactoryMachineSource`.
 
-- `FactoryMachineParser` solo parsea líneas del manual.
-- `FactoryMachine` solo representa una máquina validada.
-- `MinimumButtonPressesCalculatorPart1` solo aplica la regla de la parte 1.
-- `MinimumJoltageButtonPressesCalculatorPart2` solo aplica la regla de la parte 2.
-- `FileFactoryMachineSource` solo lee líneas de un fichero.
-- `FactorySolver` solo coordina el caso de uso.
-- `Main` solo prepara dependencias y muestra la salida.
+### Principio de Segregación de la Interfaz (ISP)
 
-Esto sigue la idea de cohesión y responsabilidad única vista en teoría: cada módulo
-tiene una razón principal para cambiar.
+`FactoryMachineSource` solo obliga a leer líneas. La interfaz no mezcla responsabilidades de parseo, resolución o salida.
 
-### Bajo acoplamiento
+### Principio de Inversión de Dependencias (DIP)
 
-`FactorySolver` depende de `FactoryMachineSource`, no de `FileFactoryMachineSource`:
+La capa de aplicación recibe una abstracción:
 
 ```java
 public FactorySolver(FactoryMachineSource source) {
@@ -176,43 +350,73 @@ public FactorySolver(FactoryMachineSource source) {
 }
 ```
 
-Esto permite cambiar el origen de datos sin modificar la lógica de aplicación.
+Así, la lógica de alto nivel no depende de la lectura concreta desde fichero.
 
-### Inversión e inyección de dependencias
+### Principio de Composición sobre Herencia (COI)
 
-La lógica de alto nivel depende de una abstracción (`FactoryMachineSource`). La
-implementación concreta se crea fuera y se inyecta por constructor:
+El solver compone el modelo común con calculadoras concretas para cada parte. No se usa herencia para compartir comportamiento entre algoritmos tan distintos.
+
+### Principio DRY
+
+`FactoryMachine` centraliza luces, botones, máscaras y requisitos. Las dos partes reutilizan esa representación y no duplican validaciones del manual.
+
+### Convención sobre Configuración (CoC)
+
+La organización Maven del módulo permite compilar, probar y cargar recursos mediante convenciones, sin configuración manual por día.
+
+### Principio YAGNI
+
+No se implementa un solucionador matemático genérico. La eliminación gaussiana y las fracciones exactas se incluyen porque la parte 2 las necesita, pero no se generalizan más allá del problema.
+
+## Patrones de diseño aplicados
+
+### Creacionales
+
+Se refleja `Factory Method` en el método `Fraction.of(...)` usado por la parte 2. En
+vez de crear directamente una fracción para representar un entero con
+`new Fraction(value, 1)`, el código usa un método estático que encapsula esa creación:
 
 ```java
-FactoryMachineSource source = new FileFactoryMachineSource(inputPath);
-FactorySolver solver = new FactorySolver(source);
+static Fraction of(long value) {
+    return new Fraction(value, 1);
+}
 ```
 
-Así se separa la creación del objeto concreto de su uso, reduciendo acoplamiento.
+No se aplica `Singleton`, porque no existe ningún recurso global que deba tener una
+única instancia.
 
-### Modularidad
+### Estructurales
 
-La división en paquetes separa responsabilidades:
+Se refleja `Adapter` en `FileFactoryMachineSource`. La aplicación trabaja con
+`FactoryMachineSource`, mientras que `FileFactoryMachineSource` adapta
+`Files.readAllLines` a esa interfaz propia del proyecto.
 
-- `domain/common`: conceptos compartidos del problema.
-- `domain/part1`: regla específica de la primera parte.
-- `domain/part2`: regla específica de la segunda parte.
-- `application`: coordinación del caso de uso.
-- `infrastructure`: detalles técnicos de entrada.
+No se aplica `Decorator`, porque no se añaden responsabilidades dinámicamente a un
+objeto envolviéndolo con otros objetos.
 
-## Patrones y técnicas usadas
+### De comportamiento
 
-### Source / Adapter
+Se refleja `Iterator` mediante el uso de colecciones y bucles `for-each`, por ejemplo
+al recorrer máquinas, botones y requisitos. En Java este recorrido se apoya en
+`Iterable`/`Iterator`, aunque el código no cree el iterador manualmente.
 
-`FactoryMachineSource` abstrae el origen de datos. `FileFactoryMachineSource` adapta
-`Files.readAllLines` a una interfaz propia del proyecto.
+No se aplica `Command`, porque los botones se modelan como datos de la máquina y no
+como objetos que encapsulen una acción ejecutable. Tampoco se aplica `Observer`,
+porque no hay suscripciones ni notificación de cambios.
 
-### Value Object
+## Otras técnicas de diseño
+
+### Abstracción del origen de datos
+
+`FactoryMachineSource` abstrae el origen de datos. El dominio no depende de si la
+entrada viene de un fichero, de memoria o de otro sistema.
+
+### Objeto de valor
 
 `FactoryMachine` se modela como `record`, por lo que representa un valor del dominio
 definido por sus datos.
 
-### Service
+### Servicio de dominio
 
 `MinimumButtonPressesCalculatorPart1` actúa como servicio de dominio: no representa
 una entidad con identidad propia, sino una operación que calcula el resultado de la

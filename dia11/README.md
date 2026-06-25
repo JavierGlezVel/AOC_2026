@@ -88,6 +88,121 @@ búsqueda: dispositivo actual, si ya se ha pasado por `dac` y si ya se ha pasado
 `fft`. Al llegar a `out`, solo cuenta el camino si ambos dispositivos requeridos ya
 han sido visitados.
 
+## Resolución detallada
+
+### Parte 1
+
+El input describe una red dirigida de dispositivos. La parte 1 cuenta cuántos
+caminos distintos van desde `you` hasta `out`. La solución usa búsqueda en
+profundidad con memoización: una vez calculado cuántos caminos salen de un
+dispositivo, ese resultado se reutiliza cuando otro camino llega al mismo nodo.
+
+El caso base es llegar a `out`, que aporta un camino válido:
+
+```java
+if (DeviceNetwork.OUTPUT_DEVICE.equals(device)) {
+    return BigInteger.ONE;
+}
+```
+
+La memoización evita recalcular subgrafos compartidos:
+
+```java
+if (memoizedPaths.containsKey(device)) {
+    return memoizedPaths.get(device);
+}
+```
+
+El total de caminos desde un dispositivo es la suma de los caminos desde todas sus
+salidas:
+
+```java
+BigInteger totalPaths = BigInteger.ZERO;
+for (String output : network.outputsFrom(device)) {
+    totalPaths = totalPaths.add(
+            countFrom(output, network, memoizedPaths, visiting));
+}
+
+memoizedPaths.put(device, totalPaths);
+return totalPaths;
+```
+
+Se mantiene además un conjunto `visiting` para detectar ciclos y fallar de forma
+explícita si el grafo no es acíclico.
+
+### Parte 2
+
+La segunda parte cuenta caminos que salen de `svr`, llegan a `out` y pasan por dos
+dispositivos obligatorios: `dac` y `fft`. Para resolverlo se amplía el estado de la
+búsqueda. Ya no basta con saber el dispositivo actual; también hay que saber si el
+camino ha visitado cada dispositivo requerido.
+
+```java
+private record PathState(String device, boolean visitedDac, boolean visitedFft) {
+    PathState withVisitedDevice() {
+        return new PathState(
+                device,
+                visitedDac || FIRST_REQUIRED_DEVICE.equals(device),
+                visitedFft || SECOND_REQUIRED_DEVICE.equals(device)
+        );
+    }
+
+    boolean hasVisitedBothRequiredDevices() {
+        return visitedDac && visitedFft;
+    }
+}
+```
+
+Al llegar a `out`, el camino solo cuenta si el estado ya ha pasado por ambos
+dispositivos:
+
+```java
+PathState updatedState = state.withVisitedDevice();
+if (DeviceNetwork.OUTPUT_DEVICE.equals(updatedState.device())) {
+    return updatedState.hasVisitedBothRequiredDevices()
+            ? BigInteger.ONE
+            : BigInteger.ZERO;
+}
+```
+
+La recursión y la memoización son iguales que en la parte 1, pero la clave de la
+memoria pasa a ser `PathState`:
+
+```java
+for (String output : network.outputsFrom(updatedState.device())) {
+    totalPaths = totalPaths.add(countFrom(
+            updatedState.moveTo(output),
+            network,
+            memoizedPaths,
+            visiting));
+}
+```
+
+De esta forma se reutiliza el mismo enfoque de conteo de caminos, pero la regla de
+validez se expresa en el estado.
+
+## Uso de Streams
+
+En este día el stream aparece al construir `DeviceNetwork`. La entrada parseada se
+recibe como un `Map<String, List<String>>`, pero el record guarda una copia
+inmutable para proteger el estado interno.
+
+```java
+outputsByDevice = outputsByDevice.entrySet().stream()
+        .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                Map.Entry::getKey,
+                entry -> List.copyOf(entry.getValue())
+        ));
+```
+
+El stream recorre las entradas del mapa original. `collect(toUnmodifiableMap(...))`
+construye un nuevo mapa no modificable. La clave se mantiene con `Map.Entry::getKey`
+y el valor se copia con `List.copyOf(...)` para que tampoco pueda modificarse la
+lista de salidas desde fuera.
+
+Este stream no calcula la respuesta del puzzle directamente; refuerza la seguridad
+del modelo de dominio para que los contadores de caminos trabajen con una red estable.
+
 ## Diseño de clases
 
 La solución está dividida en tres paquetes principales:
@@ -134,38 +249,60 @@ Contiene los detalles externos al dominio.
 - `DeviceNetworkSource`: interfaz para obtener las líneas de entrada.
 - `FileDeviceNetworkSource`: implementación que lee la red desde un fichero.
 
+## Diagrama de clases
+
+```mermaid
+classDiagram
+    class Main
+    class ReactorSolver {
+        +solvePart1() long
+        +solvePart2() long
+    }
+    class DeviceNetworkParser {
+        +parse(List~String~) DeviceNetwork
+    }
+    class DeviceNetworkSource {
+        <<interface>>
+        +getLines() List~String~
+    }
+    class FileDeviceNetworkSource {
+        +getLines() List~String~
+    }
+    class DeviceNetwork
+    class ReactorPathCounterPart1
+    class ReactorRequiredDevicePathCounterPart2
+
+    Main --> ReactorSolver
+    Main --> FileDeviceNetworkSource
+    FileDeviceNetworkSource ..|> DeviceNetworkSource
+    ReactorSolver --> DeviceNetworkSource
+    ReactorSolver --> DeviceNetworkParser
+    DeviceNetworkParser --> DeviceNetwork
+    ReactorPathCounterPart1 --> DeviceNetwork
+    ReactorRequiredDevicePathCounterPart2 --> DeviceNetwork
+```
+
 ## Principios aplicados
 
-### Abstracción
+### Principio de Responsabilidad Única (SRP)
 
-El dominio trabaja con conceptos propios del problema: red de dispositivos,
-conexiones dirigidas y contador de caminos. La lógica no depende de rutas de
-ficheros ni de consola.
+`DeviceNetworkParser` parsea la red, `DeviceNetwork` representa conexiones, `ReactorPathCounterPart1` cuenta caminos simples hacia `out`, `ReactorRequiredDevicePathCounterPart2` cuenta caminos con dispositivos obligatorios y `ReactorSolver` coordina.
 
-### Diseño por contrato
+### Principio Abierto/Cerrado (OCP)
 
-`DeviceNetworkParser` rechaza líneas vacías, líneas sin `: ` y dispositivos
-duplicados. `DeviceNetwork` exige que exista `you`, que haya al menos un dispositivo
-y que cada dispositivo tenga salidas válidas.
+La parte 2 añade una regla de conteo con estado (`PathState`) sin modificar `ReactorPathCounterPart1` ni `DeviceNetwork`. El modelo común de red queda cerrado y reutilizable.
 
-### Alta cohesión y SRP
+### Principio de Sustitución de Liskov (LSP)
 
-Cada clase tiene una responsabilidad concreta:
+`ReactorSolver` usa `DeviceNetworkSource`. Cualquier implementación que entregue líneas de red válidas puede sustituir a `FileDeviceNetworkSource`.
 
-- `DeviceNetworkParser` solo parsea líneas de entrada.
-- `DeviceNetwork` solo representa la red dirigida.
-- `ReactorPathCounterPart1` solo aplica la regla de conteo de la parte 1.
-- `ReactorRequiredDevicePathCounterPart2` solo aplica la regla de conteo de la parte 2.
-- `FileDeviceNetworkSource` solo lee líneas de un fichero.
-- `ReactorSolver` solo coordina el caso de uso.
-- `Main` solo prepara dependencias y muestra la salida.
+### Principio de Segregación de la Interfaz (ISP)
 
-Esto sigue la idea de cohesión y responsabilidad única vista en teoría: cada módulo
-tiene una razón principal para cambiar.
+`DeviceNetworkSource` es específica y pequeña: solo lectura de líneas. No fuerza a implementar operaciones de grafo que corresponden al dominio.
 
-### Bajo acoplamiento
+### Principio de Inversión de Dependencias (DIP)
 
-`ReactorSolver` depende de `DeviceNetworkSource`, no de `FileDeviceNetworkSource`:
+El solver depende de la abstracción `DeviceNetworkSource`:
 
 ```java
 public ReactorSolver(DeviceNetworkSource source) {
@@ -173,43 +310,61 @@ public ReactorSolver(DeviceNetworkSource source) {
 }
 ```
 
-Esto permite cambiar el origen de datos sin modificar la lógica de aplicación.
+### Principio de Composición sobre Herencia (COI)
 
-### Inversión e inyección de dependencias
+Las dos reglas de conteo son servicios concretos que componen `DeviceNetwork`. No hay herencia entre contadores de caminos.
 
-La lógica de alto nivel depende de una abstracción (`DeviceNetworkSource`). La
-implementación concreta se crea fuera y se inyecta por constructor:
+### Principio DRY
 
-```java
-DeviceNetworkSource source = new FileDeviceNetworkSource(inputPath);
-ReactorSolver solver = new ReactorSolver(source);
-```
+`DeviceNetwork` concentra la representación de salidas por dispositivo. Ambos contadores reutilizan `outputsFrom` y no duplican la estructura del grafo.
 
-Así se separa la creación del objeto concreto de su uso, reduciendo acoplamiento.
+### Convención sobre Configuración (CoC)
 
-### Modularidad
+El día sigue el layout Maven estándar del repositorio, lo que reduce configuración explícita.
 
-La división en paquetes separa responsabilidades:
+### Principio YAGNI
 
-- `domain/common`: conceptos compartidos del problema.
-- `domain/part1`: regla específica de la primera parte.
-- `domain/part2`: regla específica de la segunda parte.
-- `application`: coordinación del caso de uso.
-- `infrastructure`: detalles técnicos de entrada.
+No se crea un framework de grafos general. La solución implementa solo conteo de caminos con memoización y el estado adicional requerido por la parte 2.
 
-## Patrones y técnicas usadas
+## Patrones de diseño aplicados
 
-### Source / Adapter
+### Creacionales
 
-`DeviceNetworkSource` abstrae el origen de datos. `FileDeviceNetworkSource` adapta
-`Files.readAllLines` a una interfaz propia del proyecto.
+No se aplica ningún patrón creacional de forma explícita. No hace falta `Singleton`
+porque no existe ningún recurso global que deba tener una única instancia, y tampoco
+se usa `Factory Method` porque la creación de objetos es simple y directa.
 
-### Value Object
+### Estructurales
+
+Se refleja `Adapter` en `FileDeviceNetworkSource`. La aplicación trabaja con
+`DeviceNetworkSource`, mientras que `FileDeviceNetworkSource` adapta
+`Files.readAllLines` a esa interfaz propia del proyecto.
+
+No se aplica `Decorator`, porque no se añaden responsabilidades dinámicamente a un
+objeto envolviéndolo con otros objetos.
+
+### De comportamiento
+
+Se refleja `Iterator` mediante el uso de colecciones y bucles `for-each`, por ejemplo
+al recorrer salidas de dispositivos. En Java este recorrido se apoya en
+`Iterable`/`Iterator`, aunque el código no cree el iterador manualmente.
+
+No se aplica `Command`, porque no hay objetos que encapsulen acciones ejecutables.
+Tampoco se aplica `Observer`, porque no hay suscripciones ni notificación de cambios.
+
+## Otras técnicas de diseño
+
+### Abstracción del origen de datos
+
+`DeviceNetworkSource` abstrae el origen de datos. El dominio no depende de si la
+entrada viene de un fichero, de memoria o de otro sistema.
+
+### Objeto de valor
 
 `DeviceNetwork` se modela como `record`, por lo que representa un valor del dominio
 definido por sus conexiones.
 
-### Service
+### Servicio de dominio
 
 `ReactorPathCounterPart1` actúa como servicio de dominio: no representa una entidad
 con identidad propia, sino una operación que calcula el resultado de la parte 1.

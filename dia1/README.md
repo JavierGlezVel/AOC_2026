@@ -93,6 +93,99 @@ Otro ejemplo más pequeño: desde `50`, una rotación `R250` pasa por `0` tres v
 
 Por eso el test de esa rotación espera `3`.
 
+## Resolución detallada
+
+### Parte 1
+
+La primera parte interpreta cada rotación como una actualización de posición en un
+dial circular de 100 posiciones. El dial empieza en `50`; después de cada rotación
+se comprueba si la posición final es `0`. Solo cuentan los ceros que aparecen al
+terminar una instrucción, no los que se cruzan por el camino.
+
+La operación circular se encapsula en `Dial`, por lo que el cálculo de la contraseña
+no necesita saber cómo se normaliza una posición negativa o una vuelta completa:
+
+```java
+public void rotate(Rotation r) {
+    int steps = r.steps();
+    switch (r.direction()) {
+        case 'L':
+            position = (position - steps % 100 + 100) % 100;
+            break;
+        case 'R':
+            position = (position + steps) % 100;
+            break;
+    }
+}
+```
+
+Con esa abstracción, la parte 1 queda como una lectura secuencial del enunciado:
+rotar, mirar la posición final y sumar si es cero.
+
+```java
+public int calculate(List<Rotation> rotations) {
+    Dial dial = new Dial();
+    int count = 0;
+
+    for (Rotation r : rotations) {
+        dial.rotate(r);
+        if (dial.getPosition() == 0) {
+            count++;
+        }
+    }
+
+    return count;
+}
+```
+
+### Parte 2
+
+La segunda parte cambia la regla de conteo: ahora cuenta cada click que deja el
+dial en `0`, aunque ese cero ocurra durante la rotación. La solución evita simular
+click a click, porque una instrucción como `R1000` tendría muchos pasos. En su
+lugar calcula cuántas veces se cruza el cero mediante aritmética modular.
+
+El método recibe la posición inicial de la instrucción y calcula la distancia hasta
+el primer cero. Si la rotación alcanza ese primer cero, cada 100 pasos adicionales
+vuelve a pasar por `0`:
+
+```java
+private int countZeros(int start, Rotation r) {
+    int steps = r.steps();
+    if (steps <= 0) {
+        return 0;
+    }
+    if (r.direction() == 'L') {
+        if (start == 0) {
+            return steps / 100;
+        }
+        if (steps < start) {
+            return 0;
+        }
+        return 1 + (steps - start) / 100;
+    }
+
+    if (start == 0) {
+        return steps / 100;
+    }
+    int toZero = 100 - start;
+    if (steps < toZero) {
+        return 0;
+    }
+    return 1 + (steps - toZero) / 100;
+}
+```
+
+Después de contar los ceros intermedios de la instrucción, se rota el dial para que
+la siguiente instrucción parta de la posición correcta:
+
+```java
+for (Rotation r : rotations) {
+    count += countZeros(dial.getPosition(), r);
+    dial.rotate(r);
+}
+```
+
 ## Diseño de clases
 
 La solución está dividida en tres paquetes principales:
@@ -139,69 +232,86 @@ Contiene los detalles externos al dominio.
 - `RotationSource`: interfaz para obtener las líneas de entrada.
 - `FileRotationSource`: implementación que lee las rotaciones desde un fichero.
 
-## Principios aplicados
+## Diagrama de clases
 
-### Abstracción
+```mermaid
+classDiagram
+    class Main
+    class SafeSolver {
+        +solvePart1() int
+        +solvePart2() int
+    }
+    class RotationParser {
+        +parse(List~String~) List~Rotation~
+    }
+    class RotationSource {
+        <<interface>>
+        +getLines() List~String~
+    }
+    class FileRotationSource {
+        +getLines() List~String~
+    }
+    class Rotation {
+        +direction() char
+        +steps() int
+    }
+    class Dial {
+        +rotate(Rotation)
+        +getPosition() int
+    }
+    class PasswordCalculatorPart1 {
+        +calculate(List~Rotation~) int
+    }
+    class PasswordCalculatorPart2 {
+        +calculate(List~Rotation~) int
+    }
 
-La abstracción consiste en representar solo lo esencial de un concepto y ocultar los
-detalles que no necesita conocer quien lo utiliza. En esta solución, el dominio trabaja
-con conceptos propios del problema:
-
-- dial;
-- rotación;
-- calculador de contraseña;
-- fuente de rotaciones.
-
-El resto del código no necesita conocer cómo se leen los ficheros ni cómo se calcula
-internamente el módulo del dial. Por ejemplo, quien usa `Dial` solo necesita llamar a
-`rotate`, no conocer la fórmula exacta de actualización de la posición.
-
-### Diseño por contrato
-
-El diseño por contrato consiste en dejar claras las condiciones que debe cumplir un
-objeto para ser válido y poder usarse con seguridad. `Rotation` actúa como objeto de
-valor y valida su propio contrato:
-
-```java
-if (direction != 'L' && direction != 'R') {
-    throw new IllegalArgumentException("Direction must be L or R");
-}
-if (steps < 0) {
-    throw new IllegalArgumentException("Steps must be >= 0");
-}
+    Main --> SafeSolver
+    Main --> FileRotationSource
+    FileRotationSource ..|> RotationSource
+    SafeSolver --> RotationSource
+    SafeSolver --> RotationParser
+    SafeSolver --> PasswordCalculatorPart1
+    SafeSolver --> PasswordCalculatorPart2
+    RotationParser --> Rotation
+    PasswordCalculatorPart1 --> Dial
+    PasswordCalculatorPart1 --> Rotation
+    PasswordCalculatorPart2 --> Dial
+    PasswordCalculatorPart2 --> Rotation
 ```
 
-Esto deja claro que una rotación válida solo puede tener dirección `L` o `R`, y que
-los pasos no pueden ser negativos. El resto del dominio puede confiar en esa
-precondición y no repetir la misma validación en cada clase.
+## Principios aplicados
 
-### Alta cohesión y SRP
+### Principio de Responsabilidad Única (SRP)
 
-Una clase tiene alta cohesión cuando todos sus métodos y datos están relacionados
-con una misma responsabilidad. El principio de responsabilidad única refuerza esta
-idea: cada clase debe tener una sola razón principal para cambiar.
+Cada clase tiene una única razón principal para cambiar:
 
-En esta solución:
+- `Dial` cambiaría si cambia la mecánica del dial.
+- `Rotation` cambiaría si cambia la representación de una rotación.
+- `RotationParser` cambiaría si cambia el formato textual de entrada.
+- `FileRotationSource` cambiaría si cambia la lectura desde fichero.
+- `PasswordCalculatorPart1` y `PasswordCalculatorPart2` cambiarían si cambia la regla de cada parte.
+- `SafeSolver` cambiaría si cambia la coordinación del caso de uso.
 
-- `Dial` solo sabe moverse y exponer su posición.
-- `RotationParser` solo parsea texto.
-- `FileRotationSource` solo lee líneas de un fichero.
-- `PasswordCalculatorPart1` solo resuelve la parte 1.
-- `PasswordCalculatorPart2` solo resuelve la parte 2.
-- `SafeSolver` solo coordina el flujo de la aplicación.
+No hay una clase que mezcle lectura, parseo, aritmética circular y cálculo de las dos contraseñas.
 
-Esto evita que una clase concentre lectura de ficheros, parseo, reglas del dial y
-salida por consola. Cada cambio queda localizado en la clase que tiene esa
-responsabilidad.
+### Principio Abierto/Cerrado (OCP)
 
-### Bajo acoplamiento
+La parte 2 se añadió como `PasswordCalculatorPart2` sin modificar `PasswordCalculatorPart1`, `Dial` ni `Rotation`. El diseño queda abierto a nuevas reglas de cálculo creando otra clase calculadora, pero las piezas comunes quedan cerradas frente a cambios innecesarios.
 
-El bajo acoplamiento busca que las clases dependan lo menos posible de detalles
-concretos de otras clases. Así, un cambio interno en una pieza afecta menos al resto
-del sistema.
+También se puede añadir otra fuente de entrada implementando `RotationSource` sin tocar `SafeSolver`.
 
-`SafeSolver` depende de la abstracción `RotationSource`, no directamente de
-`FileRotationSource`:
+### Principio de Sustitución de Liskov (LSP)
+
+`SafeSolver` trabaja con el tipo base `RotationSource`. Cualquier implementación que respete ese contrato puede sustituir a `FileRotationSource` sin romper el solver, por ejemplo una fuente en memoria para tests.
+
+### Principio de Segregación de la Interfaz (ISP)
+
+`RotationSource` es una interfaz pequeña y específica: solo expone `readLines()`. Las clases que la implementan no están obligadas a soportar operaciones que el solver no necesita.
+
+### Principio de Inversión de Dependencias (DIP)
+
+`SafeSolver`, que contiene la lógica de alto nivel del caso de uso, depende de la abstracción `RotationSource` y no directamente de `FileRotationSource`:
 
 ```java
 public SafeSolver(RotationSource source) {
@@ -209,66 +319,89 @@ public SafeSolver(RotationSource source) {
 }
 ```
 
-Esto permite cambiar el origen de datos sin modificar la lógica de aplicación. Por
-ejemplo, se podría crear una fuente en memoria para tests o una fuente que lea desde
-red.
+La implementación concreta se crea fuera y se inyecta por constructor.
 
-### Inversión de dependencias e inyección de dependencias
+### Principio de Composición sobre Herencia (COI)
 
-La inversión de dependencias consiste en que la lógica de alto nivel dependa de
-abstracciones, no de implementaciones concretas. Aquí `SafeSolver` depende de la
-interfaz `RotationSource`.
+La solución compone objetos (`SafeSolver` usa una fuente, un parser y calculadores) en lugar de crear una jerarquía de solvers o calculadoras base. La variación entre partes se expresa con clases concretas, no con herencia artificial.
 
-La inyección de dependencias aparece porque esa dependencia se recibe por
-constructor. Esto separa la creación del objeto concreto (`FileRotationSource`) de su
-uso (`SafeSolver`), haciendo que el caso de uso sea más flexible y fácil de probar.
+### Principio DRY
 
-### Modularidad
+La aritmética circular del dial vive en `Dial` y la validación de cada instrucción vive en `Rotation`. Las dos partes reutilizan esas clases y no duplican las reglas de giro ni el formato de una rotación válida.
 
-La modularidad consiste en dividir el sistema en piezas con responsabilidades claras
-que puedan entenderse, cambiarse y reutilizarse de forma independiente.
+### Convención sobre Configuración (CoC)
 
-La división en paquetes separa responsabilidades:
+El módulo sigue las convenciones de Maven: código en `src/main/java`, tests en `src/test/java` y entrada en `src/main/resources`. Gracias a eso no hace falta configurar rutas especiales para compilar o ejecutar tests.
 
-- `domain/common`: conceptos compartidos por ambas partes.
-- `domain/part1`: regla específica de la primera parte.
-- `domain/part2`: regla específica de la segunda parte.
-- `application`: orquestación.
-- `infrastructure`: detalles técnicos de entrada.
+### Principio YAGNI
 
-Esto hace que el código sea más fácil de extender para otros días, nuevas partes o
-nuevas formas de entrada.
+No se añaden jerarquías, factories ni abstracciones generales para futuros diales que no existen en el enunciado. El diseño incluye solo las piezas necesarias para resolver las dos partes.
 
-### Polimorfismo
+## Patrones de diseño aplicados
 
-El polimorfismo permite trabajar con objetos distintos a través de un mismo tipo
-común. En este caso, el tipo común es la interfaz `RotationSource`.
+### Creacionales
 
-`FileRotationSource` es la implementación actual, pero el código cliente solo conoce
-el contrato de `RotationSource`. Si en el futuro se añade otra implementación, como
-`InMemoryRotationSource`, `SafeSolver` podría usarla sin cambiar su código.
+No se aplica ningún patrón creacional de forma explícita. No hace falta `Singleton`
+porque no existe ningún recurso global que deba tener una única instancia, y tampoco
+se usa `Factory Method` porque la creación de objetos es simple y directa.
 
-## Patrones y técnicas usadas
+### Estructurales
 
-### Repository / Source
+Se refleja `Adapter` en `FileRotationSource`.
 
-`RotationSource` funciona como una abstracción de acceso a datos. No es un patrón
-GoF estricto, pero sigue la idea habitual de aislar el origen de los datos para que el
-dominio no dependa del sistema de ficheros.
+`SafeSolver` trabaja con la interfaz `RotationSource`, que representa lo que la
+aplicación necesita: obtener líneas de rotaciones. `FileRotationSource` adapta el
+sistema de ficheros (`Files.readAllLines`) a esa interfaz propia del proyecto.
 
-### Value Object
+```java
+public interface RotationSource {
+    List<String> getLines() throws IOException;
+}
+```
+
+Así, la aplicación no depende directamente de `java.nio.file.Files`, sino de una
+abstracción del dominio de entrada.
+
+No se aplica `Decorator`, porque no se añaden responsabilidades dinámicamente a un
+objeto envolviéndolo con otros objetos.
+
+### De comportamiento
+
+Se refleja `Iterator` mediante el uso de colecciones y bucles `for-each`. Por ejemplo,
+los calculadores recorren una `List<Rotation>` sin conocer su representación interna:
+
+```java
+for (Rotation r : rotations) {
+    dial.rotate(r);
+    if (dial.getPosition() == 0) {
+        count++;
+    }
+}
+```
+
+En Java, este recorrido se apoya en `Iterable`/`Iterator`, aunque el código no cree el
+iterador manualmente.
+
+No se aplica `Command`: `Rotation` representa una instrucción del problema, pero no
+encapsula una acción ejecutable con un método tipo `execute` ni desacopla un emisor
+de un receptor. Tampoco se aplica `Observer`, porque no hay suscripciones ni
+notificación de cambios entre objetos.
+
+## Otras técnicas de diseño
+
+### Objeto de valor
 
 `Rotation` se modela como `record`, por lo que representa un dato del dominio con
 identidad basada en sus valores (`direction` y `steps`). Además, concentra la
 validación de una rotación válida.
 
-### Service
+### Servicio de dominio
 
 `PasswordCalculatorPart1` y `PasswordCalculatorPart2` actúan como servicios de
 dominio: no representan entidades con identidad propia, sino operaciones del dominio
 que calculan la contraseña a partir de una lista de rotaciones.
 
-### Fachada de caso de uso
+### Orquestador de caso de uso
 
 `SafeSolver` ofrece métodos simples (`solvePart1` y `solvePart2`) que ocultan los
 pasos internos: leer entrada, parsear rotaciones y calcular la respuesta.

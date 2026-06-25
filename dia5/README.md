@@ -113,6 +113,120 @@ if (currentRange.overlapsOrTouches(range)) {
 
 Así, un ID cubierto por varios rangos se cuenta una sola vez.
 
+## Resolución detallada
+
+### Parte 1
+
+La primera parte recibe una lista de IDs disponibles y una lista de rangos frescos.
+La solución comprueba cada ID disponible contra todos los rangos y cuenta cuántos
+pertenecen al menos a uno. La lógica de pertenencia está encapsulada en
+`FreshIngredientIdRange`, que representa un intervalo cerrado.
+
+```java
+public boolean contains(long ingredientId) {
+    return firstId <= ingredientId && ingredientId <= lastId;
+}
+```
+
+La calculadora recorre los IDs disponibles y delega la comprobación en `isFresh`:
+
+```java
+public int count(InventoryDatabase database) {
+    int freshIngredientIds = 0;
+
+    for (long ingredientId : database.availableIngredientIds()) {
+        if (isFresh(ingredientId, database)) {
+            freshIngredientIds++;
+        }
+    }
+
+    return freshIngredientIds;
+}
+```
+
+El método auxiliar termina en cuanto encuentra un rango que contiene el ID. No hace
+falta seguir buscando porque el resultado ya es verdadero:
+
+```java
+private boolean isFresh(long ingredientId, InventoryDatabase database) {
+    for (FreshIngredientIdRange range : database.freshRanges()) {
+        if (range.contains(ingredientId)) {
+            return true;
+        }
+    }
+    return false;
+}
+```
+
+### Parte 2
+
+La segunda parte ya no pregunta por los IDs disponibles, sino por cuántos IDs
+distintos quedan cubiertos por todos los rangos frescos. Para no contar dos veces
+los solapamientos, se ordenan los rangos por inicio y se fusionan los que se solapan
+o se tocan.
+
+El propio intervalo sabe si puede fusionarse con otro:
+
+```java
+public boolean overlapsOrTouches(FreshIngredientIdRange other) {
+    return firstId <= other.lastId + 1 && other.firstId <= lastId + 1;
+}
+
+public FreshIngredientIdRange merge(FreshIngredientIdRange other) {
+    return new FreshIngredientIdRange(
+            Math.min(firstId, other.firstId),
+            Math.max(lastId, other.lastId)
+    );
+}
+```
+
+La calculadora mantiene un intervalo acumulado. Si el siguiente rango se une con él,
+se fusiona; si queda separado, se suma el tamaño del acumulado y se empieza uno
+nuevo:
+
+```java
+for (FreshIngredientIdRange range : sortedRanges) {
+    if (currentRange == null) {
+        currentRange = range;
+        continue;
+    }
+
+    if (currentRange.overlapsOrTouches(range)) {
+        currentRange = currentRange.merge(range);
+    } else {
+        freshIngredientIds += currentRange.size();
+        currentRange = range;
+    }
+}
+
+if (currentRange != null) {
+    freshIngredientIds += currentRange.size();
+}
+```
+
+Con esto, rangos como `10-20` y `15-25` se cuentan como `10-25`, no como dos
+tramos independientes.
+
+## Uso de Streams
+
+En este día se usa un stream en la parte 2 para ordenar los rangos frescos antes de
+fusionarlos:
+
+```java
+List<FreshIngredientIdRange> sortedRanges = database.freshRanges().stream()
+        .sorted(Comparator.comparingLong(FreshIngredientIdRange::firstId))
+        .toList();
+```
+
+El stream parte de la lista de rangos frescos. `sorted(...)` crea una vista ordenada
+por el inicio de cada intervalo (`firstId`). Esa ordenación es necesaria porque la
+fusión funciona recorriendo de izquierda a derecha: si el rango actual se solapa o
+toca con el acumulado, se fusiona; si no, se cierra el acumulado y se empieza otro.
+
+`toList()` materializa el resultado ordenado en una lista inmutable. A partir de ahí,
+la lógica de fusión usa un bucle normal porque necesita mantener estado (`currentRange`
+y el total acumulado).
+
 ## Diseño de clases
 
 La solución está dividida en tres paquetes principales:
@@ -159,52 +273,63 @@ Contiene los detalles externos al dominio.
 - `DatabaseSource`: interfaz para obtener las líneas de entrada.
 - `FileDatabaseSource`: implementación que lee la base de datos desde un fichero.
 
-## Principios aplicados
+## Diagrama de clases
 
-### Abstracción
+```mermaid
+classDiagram
+    class Main
+    class CafeteriaSolver {
+        +solvePart1() long
+        +solvePart2() long
+    }
+    class InventoryDatabaseParser {
+        +parse(List~String~) InventoryDatabase
+    }
+    class DatabaseSource {
+        <<interface>>
+        +getLines() List~String~
+    }
+    class FileDatabaseSource {
+        +getLines() List~String~
+    }
+    class InventoryDatabase
+    class FreshIngredientIdRange
+    class FreshIngredientCounterPart1
+    class FreshIngredientIdCoverageCounterPart2
 
-El dominio trabaja con conceptos del problema: rango de IDs frescos, base de datos
-de inventario y contador de ingredientes frescos. La lógica no depende de rutas de
-ficheros ni de consola.
-
-`FreshIngredientIdRange` ofrece el método `contains`, ocultando cómo se comprueban
-los límites del intervalo.
-
-### Diseño por contrato
-
-`FreshIngredientIdRange` valida sus invariantes al construirse:
-
-```java
-if (firstId < 0 || lastId < 0) {
-    throw new IllegalArgumentException("Range limits must be >= 0");
-}
-if (firstId > lastId) {
-    throw new IllegalArgumentException("First ID must be <= last ID");
-}
+    Main --> CafeteriaSolver
+    Main --> FileDatabaseSource
+    FileDatabaseSource ..|> DatabaseSource
+    CafeteriaSolver --> DatabaseSource
+    CafeteriaSolver --> InventoryDatabaseParser
+    InventoryDatabaseParser --> InventoryDatabase
+    InventoryDatabase --> FreshIngredientIdRange
+    FreshIngredientCounterPart1 --> InventoryDatabase
+    FreshIngredientIdCoverageCounterPart2 --> InventoryDatabase
+    FreshIngredientIdCoverageCounterPart2 --> FreshIngredientIdRange
 ```
 
-Así, el contador puede confiar en que todo rango tiene límites no negativos y que el
-inicio no es mayor que el final.
+## Principios aplicados
 
-### Alta cohesión y SRP
+### Principio de Responsabilidad Única (SRP)
 
-Cada clase tiene una responsabilidad concreta:
+`InventoryDatabaseParser` parsea, `FreshIngredientIdRange` representa intervalos, `InventoryDatabase` agrupa datos, `FreshIngredientCounterPart1` cuenta IDs disponibles, `FreshIngredientIdCoverageCounterPart2` fusiona cobertura de rangos y `CafeteriaSolver` coordina el flujo.
 
-- `InventoryDatabaseParser` solo parsea la entrada.
-- `FreshIngredientIdRange` solo representa y valida un rango.
-- `InventoryDatabase` solo agrupa los datos de la base de datos.
-- `FreshIngredientCounterPart1` solo aplica la regla de la parte 1.
-- `FreshIngredientIdCoverageCounterPart2` solo aplica la regla de la parte 2.
-- `FileDatabaseSource` solo lee líneas de un fichero.
-- `CafeteriaSolver` solo coordina el caso de uso.
-- `Main` solo prepara dependencias y muestra la salida.
+### Principio Abierto/Cerrado (OCP)
 
-Esto evita mezclar lectura de ficheros, parseo, validación de rangos y conteo en una
-única clase.
+La parte 2 se incorpora como una calculadora nueva que reutiliza `FreshIngredientIdRange` e `InventoryDatabase`. La parte 1 no se modifica para añadir la regla de cobertura total.
 
-### Bajo acoplamiento
+### Principio de Sustitución de Liskov (LSP)
 
-`CafeteriaSolver` depende de `DatabaseSource`, no de `FileDatabaseSource`:
+`CafeteriaSolver` depende de `DatabaseSource`. Otra fuente de datos compatible puede sustituir a `FileDatabaseSource` sin afectar al caso de uso.
+
+### Principio de Segregación de la Interfaz (ISP)
+
+`DatabaseSource` solo expone la lectura de líneas. La implementación no tiene que soportar operaciones que el solver no usa.
+
+### Principio de Inversión de Dependencias (DIP)
+
+La aplicación depende de `DatabaseSource`, no de la clase concreta de fichero:
 
 ```java
 public CafeteriaSolver(DatabaseSource source) {
@@ -212,52 +337,62 @@ public CafeteriaSolver(DatabaseSource source) {
 }
 ```
 
-Esto permite cambiar el origen de datos sin modificar la lógica de aplicación.
+### Principio de Composición sobre Herencia (COI)
 
-### Inversión e inyección de dependencias
+La solución compone records de dominio y calculadores concretos. No hay una clase base de contadores ni una jerarquía de intervalos.
 
-La lógica de alto nivel depende de una abstracción (`DatabaseSource`). La
-implementación concreta se crea fuera y se inyecta por constructor:
+### Principio DRY
 
-```java
-DatabaseSource source = new FileDatabaseSource(inputPath);
-CafeteriaSolver solver = new CafeteriaSolver(source);
-```
+La lógica de pertenencia, solapamiento, fusión y tamaño de intervalos vive en `FreshIngredientIdRange`. Las partes reutilizan esas operaciones en lugar de repetir comparaciones de límites.
 
-Así se separa la creación del objeto concreto de su uso.
+### Convención sobre Configuración (CoC)
 
-### Modularidad
+La estructura del módulo sigue Maven: código, tests y recursos están en las carpetas esperadas por defecto.
 
-La división en paquetes separa responsabilidades:
+### Principio YAGNI
 
-- `domain/common`: conceptos compartidos del problema.
-- `domain/part1`: regla específica de la primera parte.
-- `domain/part2`: regla específica de la segunda parte.
-- `application`: coordinación del caso de uso.
-- `infrastructure`: detalles técnicos de entrada.
+No se añade una estructura de interval tree ni un motor de consultas más general. Para el enunciado basta con comprobar pertenencia en la parte 1 y ordenar/fusionar rangos en la parte 2.
 
-Esto deja claro qué código pertenece a cada parte y qué código es compartido.
+## Patrones de diseño aplicados
 
-### Polimorfismo
+### Creacionales
 
-El polimorfismo aparece en `DatabaseSource`. `FileDatabaseSource` es la
-implementación actual, pero `CafeteriaSolver` solo conoce la interfaz. Podría usarse
-otra implementación, como una fuente en memoria, sin cambiar el solver.
+No se aplica ningún patrón creacional de forma explícita. No hace falta `Singleton`
+porque no existe ningún recurso global que deba tener una única instancia, y tampoco
+se usa `Factory Method` porque la creación de objetos es simple y directa.
 
-## Patrones y técnicas usadas
+### Estructurales
 
-### Source / Adapter
+Se refleja `Adapter` en `FileDatabaseSource`. La aplicación trabaja con
+`DatabaseSource`, mientras que `FileDatabaseSource` adapta `Files.readAllLines` a
+esa interfaz propia del proyecto.
 
-`DatabaseSource` abstrae el origen de datos. `FileDatabaseSource` adapta la lectura
-de `Files.readAllLines` a una interfaz propia del proyecto.
+No se aplica `Decorator`, porque no se añaden responsabilidades dinámicamente a un
+objeto envolviéndolo con otros objetos.
 
-### Value Object
+### De comportamiento
+
+Se refleja `Iterator` mediante el uso de colecciones y bucles `for-each`, por ejemplo
+al recorrer rangos de ingredientes. En Java este recorrido se apoya en
+`Iterable`/`Iterator`, aunque el código no cree el iterador manualmente.
+
+No se aplica `Command`, porque no hay objetos que encapsulen acciones ejecutables.
+Tampoco se aplica `Observer`, porque no hay suscripciones ni notificación de cambios.
+
+## Otras técnicas de diseño
+
+### Abstracción del origen de datos
+
+`DatabaseSource` abstrae el origen de datos. El dominio no depende de si la entrada
+viene de un fichero, de memoria o de otro sistema.
+
+### Objeto de valor
 
 `FreshIngredientIdRange` se modela como `record`, por lo que representa un valor del
 dominio definido por sus datos (`firstId` y `lastId`). Además, valida sus invariantes
 al construirse.
 
-### Service
+### Servicio de dominio
 
 `FreshIngredientCounterPart1` actúa como servicio de dominio: no representa una
 entidad con identidad propia, sino una operación que calcula el resultado de la parte
@@ -272,7 +407,7 @@ La parte 2 usa una técnica de fusión de intervalos: ordenar por inicio, unir r
 solapados o contiguos y sumar sus tamaños. Esto evita generar explícitamente todos
 los IDs de rangos enormes.
 
-### Fachada de caso de uso
+### Orquestador de caso de uso
 
 `CafeteriaSolver` ofrece métodos simples (`solvePart1` y `solvePart2`) que ocultan los pasos
 internos: leer entrada, parsear la base de datos y calcular la respuesta.

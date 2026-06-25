@@ -121,6 +121,104 @@ Se usa `BigInteger` porque el número de líneas temporales crece de forma
 exponencial con los divisores alcanzados y puede superar el rango de tipos enteros
 pequeños.
 
+## Resolución detallada
+
+### Parte 1
+
+La entrada se modela como una cuadrícula con un único punto de inicio `S` y
+divisores `^`. La parte 1 simula qué columnas tienen un haz activo en cada fila.
+Cuando un haz encuentra un divisor, deja de avanzar recto y se divide en dos haces:
+uno a la columna izquierda y otro a la derecha.
+
+La simulación guarda solo columnas activas, no objetos de haz completos. Esto basta
+porque todos los haces avanzan una fila por iteración:
+
+```java
+GridPosition start = manifold.start();
+Set<Integer> activeColumns = Set.of(start.column());
+
+for (int row = start.row() + 1; row < manifold.height() && !activeColumns.isEmpty(); row++) {
+    Set<Integer> nextActiveColumns = new HashSet<>();
+
+    for (int column : activeColumns) {
+        GridPosition position = new GridPosition(row, column);
+        if (manifold.isSplitterAt(position)) {
+            splits++;
+            addIfInside(manifold, nextActiveColumns, column - 1);
+            addIfInside(manifold, nextActiveColumns, column + 1);
+        } else {
+            nextActiveColumns.add(column);
+        }
+    }
+
+    activeColumns = nextActiveColumns;
+}
+```
+
+`Set<Integer>` evita duplicar trabajo si dos haces llegan a la misma columna en la
+misma fila. Para la parte 1 solo importa contar divisiones, no cuántas líneas
+temporales llegan por cada columna.
+
+### Parte 2
+
+La segunda parte sí necesita contar cuántas líneas temporales distintas existen. Por
+eso se reemplaza el conjunto de columnas por un mapa `columna -> número de líneas`.
+Cuando varias líneas llegan a la misma columna, sus cantidades se suman.
+
+```java
+Map<Integer, BigInteger> activeTimelines = Map.of(start.column(), BigInteger.ONE);
+BigInteger completedTimelines = BigInteger.ZERO;
+```
+
+Al encontrar un divisor, cada línea temporal se propaga hacia izquierda y derecha.
+Si una rama sale del mapa, esa línea se considera completada:
+
+```java
+private BigInteger split(TachyonManifold manifold,
+                         Map<Integer, BigInteger> activeTimelines,
+                         BigInteger completedTimelines,
+                         int column,
+                         BigInteger timelines) {
+    if (manifold.containsColumn(column)) {
+        addTimelines(activeTimelines, column, timelines);
+        return completedTimelines;
+    }
+    return completedTimelines.add(timelines);
+}
+```
+
+El uso de `BigInteger` evita desbordamientos cuando las divisiones multiplican el
+número de líneas temporales:
+
+```java
+private void addTimelines(Map<Integer, BigInteger> activeTimelines,
+                          int column,
+                          BigInteger timelines) {
+    activeTimelines.merge(column, timelines, BigInteger::add);
+}
+```
+
+Al terminar, se suman las líneas que ya salieron del mapa y las que siguen activas
+al alcanzar la última fila.
+
+## Uso de Streams
+
+En este día solo hay un stream, al final de la parte 2. Durante la simulación se
+mantienen dos grupos de líneas temporales: las que ya han salido del mapa
+(`completedTimelines`) y las que siguen activas en la última fila.
+
+```java
+return completedTimelines.add(activeTimelines.values().stream()
+        .reduce(BigInteger.ZERO, BigInteger::add));
+```
+
+`activeTimelines.values()` contiene las cantidades de líneas temporales activas por
+columna. El stream recorre esos valores y `reduce(BigInteger.ZERO, BigInteger::add)`
+los suma. Después se añade esa suma a `completedTimelines`.
+
+Se usa `BigInteger` porque el número de líneas puede crecer mucho al dividirse en
+cada splitter.
+
 ## Diseño de clases
 
 La solución está dividida en tres paquetes principales:
@@ -169,39 +267,62 @@ Contiene los detalles externos al dominio.
 - `DiagramSource`: interfaz para obtener las líneas de entrada.
 - `FileDiagramSource`: implementación que lee el diagrama desde un fichero.
 
+## Diagrama de clases
+
+```mermaid
+classDiagram
+    class Main
+    class LaboratorySolver {
+        +solvePart1() long
+        +solvePart2() BigInteger
+    }
+    class TachyonManifoldParser {
+        +parse(List~String~) TachyonManifold
+    }
+    class DiagramSource {
+        <<interface>>
+        +getLines() List~String~
+    }
+    class FileDiagramSource {
+        +getLines() List~String~
+    }
+    class TachyonManifold
+    class GridPosition
+    class BeamSplitCounterPart1
+    class TimelineCounterPart2
+
+    Main --> LaboratorySolver
+    Main --> FileDiagramSource
+    FileDiagramSource ..|> DiagramSource
+    LaboratorySolver --> DiagramSource
+    LaboratorySolver --> TachyonManifoldParser
+    TachyonManifoldParser --> TachyonManifold
+    TachyonManifold --> GridPosition
+    BeamSplitCounterPart1 --> TachyonManifold
+    TimelineCounterPart2 --> TachyonManifold
+```
+
 ## Principios aplicados
 
-### Abstracción
+### Principio de Responsabilidad Única (SRP)
 
-El dominio trabaja con conceptos propios del problema: colector, posición y contador
-de divisiones o líneas temporales. La lógica de simulación no depende de rutas de
-ficheros ni de consola.
+`TachyonManifoldParser` parsea, `TachyonManifold` representa y valida el diagrama, `GridPosition` modela coordenadas, `BeamSplitCounterPart1` cuenta divisiones, `TimelineCounterPart2` cuenta líneas temporales y `LaboratorySolver` coordina.
 
-### Diseño por contrato
+### Principio Abierto/Cerrado (OCP)
 
-`TachyonManifold` valida que el diagrama tenga al menos una fila y una columna, que
-todas las filas tengan la misma anchura, que solo aparezcan los caracteres `.`, `S` y
-`^`, y que exista exactamente un inicio `S`.
+La parte 2 se añadió con `TimelineCounterPart2` sin modificar `BeamSplitCounterPart1` ni `TachyonManifold`. La cuadrícula común queda disponible para nuevas reglas de simulación.
 
-### Alta cohesión y SRP
+### Principio de Sustitución de Liskov (LSP)
 
-Cada clase tiene una responsabilidad concreta:
+`LaboratorySolver` usa `DiagramSource`; cualquier fuente compatible puede sustituir a `FileDiagramSource` sin cambiar la lógica.
 
-- `TachyonManifoldParser` solo parsea líneas de entrada.
-- `TachyonManifold` solo representa y valida el diagrama.
-- `GridPosition` solo representa una coordenada.
-- `BeamSplitCounterPart1` solo aplica la regla de simulación de la parte 1.
-- `TimelineCounterPart2` solo aplica la regla de simulación de la parte 2.
-- `FileDiagramSource` solo lee líneas de un fichero.
-- `LaboratorySolver` solo coordina el caso de uso.
-- `Main` solo prepara dependencias y muestra la salida.
+### Principio de Segregación de la Interfaz (ISP)
 
-Esto sigue la idea de cohesión y responsabilidad única vista en teoría: cada módulo
-tiene una razón principal para cambiar.
+`DiagramSource` solo define la lectura de líneas. La fuente no está obligada a saber validar ni simular el colector.
 
-### Bajo acoplamiento
+### Principio de Inversión de Dependencias (DIP)
 
-`LaboratorySolver` depende de `DiagramSource`, no de `FileDiagramSource`:
+La lógica de alto nivel depende de `DiagramSource`:
 
 ```java
 public LaboratorySolver(DiagramSource source) {
@@ -209,50 +330,68 @@ public LaboratorySolver(DiagramSource source) {
 }
 ```
 
-Esto permite cambiar el origen de datos sin modificar la lógica de aplicación.
+### Principio de Composición sobre Herencia (COI)
 
-### Inversión e inyección de dependencias
+No hay una clase base para simuladores de haces. El solver compone el manifold y el contador concreto de cada parte.
 
-La lógica de alto nivel depende de una abstracción (`DiagramSource`). La
-implementación concreta se crea fuera y se inyecta por constructor:
+### Principio DRY
 
-```java
-DiagramSource source = new FileDiagramSource(inputPath);
-LaboratorySolver solver = new LaboratorySolver(source);
-```
+`TachyonManifold` concentra las consultas compartidas: inicio, límites y divisores. Las dos partes no repiten la validación ni el acceso a la cuadrícula.
 
-Así se separa la creación del objeto concreto de su uso, reduciendo acoplamiento.
+### Convención sobre Configuración (CoC)
 
-### Modularidad
+El día sigue el layout Maven común del repositorio, por lo que se integra en el build sin configuración específica.
 
-La división en paquetes separa responsabilidades:
+### Principio YAGNI
 
-- `domain/common`: conceptos compartidos del problema.
-- `domain/part1`: regla específica de la primera parte.
-- `domain/part2`: regla específica de la segunda parte.
-- `application`: coordinación del caso de uso.
-- `infrastructure`: detalles técnicos de entrada.
+No se crea un motor físico ni una abstracción general de rayos. Se implementan solo las reglas de desplazamiento que aparecen en el enunciado.
 
-## Patrones y técnicas usadas
+## Patrones de diseño aplicados
 
-### Source / Adapter
+### Creacionales
 
-`DiagramSource` abstrae el origen de datos. `FileDiagramSource` adapta
-`Files.readAllLines` a una interfaz propia del proyecto.
+No se aplica ningún patrón creacional de forma explícita. No hace falta `Singleton`
+porque no existe ningún recurso global que deba tener una única instancia, y tampoco
+se usa `Factory Method` porque la creación de objetos es simple y directa.
 
-### Value Object
+### Estructurales
+
+Se refleja `Adapter` en `FileDiagramSource`. La aplicación trabaja con
+`DiagramSource`, mientras que `FileDiagramSource` adapta `Files.readAllLines` a esa
+interfaz propia del proyecto.
+
+No se aplica `Decorator`, porque no se añaden responsabilidades dinámicamente a un
+objeto envolviéndolo con otros objetos.
+
+### De comportamiento
+
+Se refleja `Iterator` mediante el uso de colecciones y bucles `for-each`, por ejemplo
+al recorrer columnas activas y líneas temporales. En Java este recorrido se apoya en
+`Iterable`/`Iterator`, aunque el código no cree el iterador manualmente.
+
+No se aplica `Command`, porque no hay objetos que encapsulen acciones ejecutables.
+Tampoco se aplica `Observer`, porque no hay suscripciones ni notificación de cambios.
+
+## Otras técnicas de diseño
+
+### Abstracción del origen de datos
+
+`DiagramSource` abstrae el origen de datos. El dominio no depende de si la entrada
+viene de un fichero, de memoria o de otro sistema.
+
+### Objeto de valor
 
 `TachyonManifold` y `GridPosition` se modelan como `record`, por lo que representan
 valores del dominio definidos por sus datos. `TachyonManifold` además valida sus
 invariantes al construirse.
 
-### Service
+### Servicio de dominio
 
 `BeamSplitCounterPart1` y `TimelineCounterPart2` actúan como servicios de dominio:
 no representan entidades con identidad propia, sino operaciones que calculan los
 resultados de cada parte.
 
-### Fachada de caso de uso
+### Orquestador de caso de uso
 
 `LaboratorySolver` ofrece `solvePart1` y `solvePart2`, ocultando los pasos internos:
 leer entrada, parsear el diagrama y calcular la respuesta.

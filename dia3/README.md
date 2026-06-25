@@ -118,6 +118,115 @@ return banks.stream()
         .sum();
 ```
 
+## Resolución detallada
+
+### Parte 1
+
+Cada línea representa un banco de baterías como una cadena de dígitos. La parte 1
+necesita formar el mayor número posible encendiendo dos baterías y respetando el
+orden original. La solución usa un algoritmo voraz: para cada posición del resultado
+elige el mayor dígito posible dejando suficientes dígitos a la derecha para completar
+el número.
+
+La clase común `MaximumJoltageCalculator` recibe cuántas baterías hay que encender.
+Para la parte 1 se instancia con `2`:
+
+```java
+public TotalOutputJoltageCalculatorPart1() {
+    this(new MaximumJoltageCalculator(2));
+}
+```
+
+La selección voraz mantiene `searchStart`, que impide volver atrás en la cadena:
+
+```java
+for (int selected = 0; selected < batteriesToTurnOn; selected++) {
+    int searchEnd = ratings.length() - (batteriesToTurnOn - selected);
+    int bestIndex = searchStart;
+
+    for (int currentIndex = searchStart; currentIndex <= searchEnd; currentIndex++) {
+        if (ratings.charAt(currentIndex) > ratings.charAt(bestIndex)) {
+            bestIndex = currentIndex;
+        }
+    }
+
+    maximumJoltage.append(ratings.charAt(bestIndex));
+    searchStart = bestIndex + 1;
+}
+```
+
+El resultado de cada banco se suma con `TotalOutputJoltageCalculator`:
+
+```java
+return banks.stream()
+        .mapToLong(joltageCalculator::calculate)
+        .sum();
+```
+
+### Parte 2
+
+La segunda parte conserva exactamente el mismo problema algorítmico, pero cambia el
+número de baterías que hay que seleccionar. En lugar de duplicar la lógica, se
+reutiliza el mismo calculador voraz parametrizado con `12`:
+
+```java
+public TotalOutputJoltageCalculatorPart2() {
+    this(new MaximumJoltageCalculator(12));
+}
+```
+
+Esto funciona porque el algoritmo no depende de que se seleccionen dos dígitos:
+solo necesita saber cuántas posiciones tendrá el número final. La regla de
+optimización sigue siendo la misma: elegir el mayor dígito posible en cada paso sin
+impedir completar las posiciones restantes.
+
+```java
+public long calculate(BatteryBank bank) {
+    String ratings = bank.ratings();
+    StringBuilder maximumJoltage = new StringBuilder();
+    int searchStart = 0;
+
+    for (int selected = 0; selected < batteriesToTurnOn; selected++) {
+        int searchEnd = ratings.length() - (batteriesToTurnOn - selected);
+        int bestIndex = searchStart;
+
+        for (int currentIndex = searchStart; currentIndex <= searchEnd; currentIndex++) {
+            if (ratings.charAt(currentIndex) > ratings.charAt(bestIndex)) {
+                bestIndex = currentIndex;
+            }
+        }
+
+        maximumJoltage.append(ratings.charAt(bestIndex));
+        searchStart = bestIndex + 1;
+    }
+
+    return Long.parseLong(maximumJoltage.toString());
+}
+```
+
+La diferencia entre partes queda aislada en la configuración del servicio, no en la
+duplicación del algoritmo.
+
+## Uso de Streams
+
+En este día el stream principal está en `TotalOutputJoltageCalculator`. Su trabajo
+es aplicar el calculador de joltage a cada banco y sumar los resultados.
+
+```java
+return banks.stream()
+        .mapToLong(joltageCalculator::calculate)
+        .sum();
+```
+
+El stream parte de `List<BatteryBank>`. `mapToLong(joltageCalculator::calculate)`
+transforma cada banco en el valor numérico que produce la regla configurada. En la
+parte 1 esa regla selecciona 2 baterías; en la parte 2 selecciona 12. Finalmente,
+`sum()` acumula todos los joltages en un único total.
+
+Este stream es importante para el diseño porque permite que la suma sea común a las
+dos partes. El totalizador no sabe qué regla concreta se está usando; solo aplica el
+contrato `JoltageCalculator` a cada elemento.
+
 ## Diseño de clases
 
 La solución está dividida en tres paquetes principales:
@@ -166,186 +275,153 @@ Contiene los detalles externos al dominio.
 - `BatteryBankSource`: interfaz para obtener las líneas de entrada.
 - `FileBatteryBankSource`: implementación que lee los bancos desde un fichero.
 
+## Diagrama de clases
+
+```mermaid
+classDiagram
+    class Main
+    class LobbySolver {
+        +solvePart1() long
+        +solvePart2() long
+    }
+    class BatteryBankParser {
+        +parse(List~String~) List~BatteryBank~
+    }
+    class BatteryBankSource {
+        <<interface>>
+        +getLines() List~String~
+    }
+    class FileBatteryBankSource {
+        +getLines() List~String~
+    }
+    class BatteryBank
+    class JoltageCalculator {
+        <<interface>>
+        +calculate(BatteryBank) long
+    }
+    class MaximumJoltageCalculator
+    class TotalOutputJoltageCalculator
+    class TotalOutputJoltageCalculatorPart1
+    class TotalOutputJoltageCalculatorPart2
+
+    Main --> LobbySolver
+    Main --> FileBatteryBankSource
+    FileBatteryBankSource ..|> BatteryBankSource
+    LobbySolver --> BatteryBankSource
+    LobbySolver --> BatteryBankParser
+    BatteryBankParser --> BatteryBank
+    MaximumJoltageCalculator ..|> JoltageCalculator
+    TotalOutputJoltageCalculator --> JoltageCalculator
+    TotalOutputJoltageCalculatorPart1 --> TotalOutputJoltageCalculator
+    TotalOutputJoltageCalculatorPart2 --> TotalOutputJoltageCalculator
+```
+
 ## Principios aplicados
 
-### Abstracción
+### Principio de Responsabilidad Única (SRP)
 
-La abstracción consiste en trabajar con los conceptos esenciales del problema y
-ocultar los detalles secundarios. En esta solución el dominio habla de bancos de
-baterías, calculadores de joltage y totalizadores, no de rutas de ficheros ni de
-consola.
+Cada clase tiene una única razón principal para cambiar:
 
-`JoltageCalculator` expresa lo que necesita el totalizador:
+- `BatteryBankParser` parsea líneas.
+- `BatteryBank` representa un banco de baterías.
+- `MaximumJoltageCalculator` calcula el mayor joltage para un banco.
+- `TotalOutputJoltageCalculator` suma resultados de varios bancos.
+- `TotalOutputJoltageCalculatorPart1` configura la parte 1.
+- `TotalOutputJoltageCalculatorPart2` configura la parte 2.
+- `LobbySolver` coordina el caso de uso.
+
+### Principio Abierto/Cerrado (OCP)
+
+La parte 2 no modifica el totalizador común: crea otra configuración con `MaximumJoltageCalculator(12)`. Si aparece otra regla, puede añadirse otra implementación de `JoltageCalculator` o una nueva configuración sin tocar `TotalOutputJoltageCalculator`.
+
+### Principio de Sustitución de Liskov (LSP)
+
+`TotalOutputJoltageCalculator` trabaja con el contrato `JoltageCalculator`. Cualquier implementación que calcule un `long` a partir de un `BatteryBank` puede sustituir a `MaximumJoltageCalculator` sin romper la suma.
+
+### Principio de Segregación de la Interfaz (ISP)
+
+`JoltageCalculator` solo exige `calculate(BatteryBank bank)` y `BatteryBankSource` solo exige leer líneas. Las clases cliente no dependen de métodos que no utilizan.
+
+### Principio de Inversión de Dependencias (DIP)
+
+El totalizador depende de `JoltageCalculator`, no de una implementación concreta:
 
 ```java
-public interface JoltageCalculator {
-    long calculate(BatteryBank bank);
+public TotalOutputJoltageCalculator(JoltageCalculator joltageCalculator) {
+    this.joltageCalculator = Objects.requireNonNull(joltageCalculator);
 }
 ```
 
-El código que suma no necesita conocer si el cálculo escoge 2, 12 u otro número de
-baterías.
+`LobbySolver` también depende de `BatteryBankSource`, no de `FileBatteryBankSource`.
 
-### Diseño por contrato
+### Principio de Composición sobre Herencia (COI)
 
-`BatteryBank` valida sus invariantes al construirse:
+La variación se resuelve componiendo `TotalOutputJoltageCalculator` con un `JoltageCalculator`. No hace falta heredar de una clase base para cambiar de 2 a 12 baterías.
 
-```java
-if (ratings == null || ratings.length() < 2) {
-    throw new IllegalArgumentException("A battery bank needs at least two batteries");
-}
-if (!ratings.matches("[1-9]+")) {
-    throw new IllegalArgumentException("Battery ratings must be digits from 1 to 9: " + ratings);
-}
-```
+### Principio DRY
 
-Así, el resto del dominio puede confiar en que todo banco tiene al menos dos
-baterías y solo contiene dígitos del `1` al `9`.
+La suma de los resultados de todos los bancos está en `TotalOutputJoltageCalculator`. Las partes 1 y 2 reutilizan ese recorrido y solo cambian la configuración del cálculo.
 
-`MaximumJoltageCalculator` también valida que el número de baterías requerido sea
-válido y que el banco tenga suficientes baterías para la regla configurada.
+### Convención sobre Configuración (CoC)
 
-### Alta cohesión y SRP
+Se mantiene la convención Maven de fuentes, recursos y tests. El módulo no necesita configuración especial para integrarse en el reactor del proyecto.
 
-Cada clase tiene una responsabilidad concreta:
+### Principio YAGNI
 
-- `BatteryBankParser` solo parsea líneas de entrada.
-- `BatteryBank` solo representa y valida un banco de baterías.
-- `MaximumJoltageCalculator` solo calcula el máximo joltage de un banco.
-- `TotalOutputJoltageCalculator` solo suma joltages de varios bancos.
-- `TotalOutputJoltageCalculatorPart1` solo configura la regla de la parte 1.
-- `TotalOutputJoltageCalculatorPart2` solo configura la regla de la parte 2.
-- `FileBatteryBankSource` solo lee líneas de un fichero.
-- `LobbySolver` solo coordina el caso de uso.
-- `Main` solo prepara dependencias y muestra la salida.
+No se añade un framework de estrategias más complejo. La interfaz `JoltageCalculator` basta para expresar la variación real del problema.
 
-Esto evita mezclar lectura de ficheros, parseo, algoritmo de selección, suma y salida
-por consola en una única clase.
+## Patrones de diseño aplicados
 
-### Bajo acoplamiento
+### Creacionales
 
-`LobbySolver` depende de la interfaz `BatteryBankSource`, no de
-`FileBatteryBankSource`:
+No se aplica ningún patrón creacional de forma explícita. No hace falta `Singleton`
+porque no existe ningún recurso global que deba tener una única instancia, y tampoco
+se usa `Factory Method` porque la creación de objetos es simple y directa.
 
-```java
-public LobbySolver(BatteryBankSource source) {
-    this.source = source;
-}
-```
+### Estructurales
 
-Esto permite cambiar el origen de datos sin tocar la lógica de aplicación.
+Se refleja `Adapter` en `FileBatteryBankSource`. La aplicación trabaja con
+`BatteryBankSource`, mientras que `FileBatteryBankSource` adapta `Files.readAllLines`
+a esa interfaz propia del proyecto.
 
-`TotalOutputJoltageCalculator` depende de `JoltageCalculator`, no de
-`MaximumJoltageCalculator`. Por eso puede sumar resultados de cualquier estrategia
-que respete el contrato.
+No se aplica `Decorator`, porque no se añaden responsabilidades dinámicamente a un
+objeto envolviéndolo con otros objetos.
 
-### Inversión e inyección de dependencias
+### De comportamiento
 
-La inversión de dependencias aparece porque las clases de alto nivel dependen de
-abstracciones:
+Se refleja `Iterator` mediante el uso de colecciones y bucles `for-each`, por ejemplo
+al recorrer las líneas de entrada y los bancos de baterías. En Java este recorrido se
+apoya en `Iterable`/`Iterator`, aunque el código no cree el iterador manualmente.
 
-- `LobbySolver` depende de `BatteryBankSource`.
-- `TotalOutputJoltageCalculator` depende de `JoltageCalculator`.
+No se aplica `Command`, porque no hay objetos que encapsulen acciones ejecutables.
+Tampoco se aplica `Observer`, porque no hay suscripciones ni notificación de cambios.
 
-La inyección de dependencias se usa al pasar esas dependencias por constructor. En
-`Main` se crea la fuente concreta:
+## Otras técnicas de diseño
 
-```java
-BatteryBankSource source = new FileBatteryBankSource(inputPath);
-LobbySolver solver = new LobbySolver(source);
-```
-
-La creación del objeto concreto queda separada de su uso.
-
-### Abierto/Cerrado
-
-El principio abierto/cerrado indica que el código debería poder extenderse sin
-modificar las piezas estables.
-
-La parte 2 se añade creando `TotalOutputJoltageCalculatorPart2` y configurando
-`MaximumJoltageCalculator` con `12` baterías. El servicio común
-`TotalOutputJoltageCalculator` no necesita saber qué parte está resolviendo: solo
-trabaja con el contrato `JoltageCalculator`.
-
-Si apareciera otra regla de joltage, se podría añadir otra implementación de
-`JoltageCalculator` sin cambiar el totalizador.
-
-### Sustitución de Liskov
-
-La sustitución de Liskov aparece de forma sencilla en `JoltageCalculator`: cualquier
-implementación que respete ese contrato puede sustituir a otra en
-`TotalOutputJoltageCalculator` sin romper la suma.
-
-El test `canUseAnyCalculatorThatSatisfiesTheJoltageContract` usa una implementación
-alternativa del contrato para comprobar que el totalizador no depende de
-`MaximumJoltageCalculator`.
-
-### Modularidad
-
-La modularidad divide el sistema en piezas que pueden entenderse y modificarse por
-separado:
-
-- `domain/common`: reglas y conceptos compartidos por ambas partes.
-- `domain/part1`: configuración específica de la primera parte.
-- `domain/part2`: configuración específica de la segunda parte.
-- `application`: coordinación del caso de uso.
-- `infrastructure`: detalles técnicos de entrada.
-
-Esta separación permite cambiar una pieza concreta sin arrastrar al resto. Por
-ejemplo, si la entrada dejara de venir de un fichero, el dominio no tendría que
-cambiar.
-
-### Polimorfismo
-
-El polimorfismo permite trabajar con distintas implementaciones a través de un mismo
-tipo común. En esta solución aparece en dos contratos:
-
-- `BatteryBankSource`, implementado por `FileBatteryBankSource`.
-- `JoltageCalculator`, implementado por `MaximumJoltageCalculator`.
-
-Gracias a esto, una clase cliente puede usar el contrato sin depender de una clase
-concreta.
-
-### Streams
-
-La API de Streams se usa en el punto donde aporta claridad: sumar el resultado de
-aplicar el calculador a cada banco.
-
-Se utiliza `mapToLong`, un stream de primitivos, porque la parte 2 produce números y
-sumas grandes:
-
-```java
-banks.stream()
-        .mapToLong(joltageCalculator::calculate)
-        .sum();
-```
-
-## Patrones y técnicas usadas
-
-### Source
+### Abstracción del origen de datos
 
 `BatteryBankSource` actúa como abstracción del origen de datos. El dominio no
 depende de si la entrada viene de un fichero, de memoria o de otro sistema.
 
-### Value Object
+### Objeto de valor
 
 `BatteryBank` se modela como `record`, por lo que representa un valor del dominio
 definido por sus datos. Además, valida sus invariantes al construirse.
 
-### Service
+### Servicio de dominio
 
 `MaximumJoltageCalculator`, `TotalOutputJoltageCalculator`,
 `TotalOutputJoltageCalculatorPart1` y `TotalOutputJoltageCalculatorPart2` actúan como
 servicios de dominio. No representan entidades con identidad propia, sino operaciones
 del problema que reciben datos y devuelven un resultado.
 
-### Estrategia
+### Estrategia de cálculo
 
 `JoltageCalculator` permite separar el algoritmo de cálculo del código que suma los
 resultados. La implementación usada actualmente es `MaximumJoltageCalculator`, que
 se configura con el número de baterías que hay que encender.
 
-### Fachada de caso de uso
+### Orquestador de caso de uso
 
 `LobbySolver` ofrece métodos simples (`solvePart1` y `solvePart2`) que ocultan los
 pasos internos: leer entrada, parsear bancos y calcular la suma.

@@ -60,6 +60,181 @@ ocupadas.
 El solver exacto se usa en los tests del ejemplo oficial. Esto evita aceptar casos
 pequeños que tienen área suficiente pero no admiten una colocación real.
 
+## Resolución detallada
+
+### Parte 1
+
+El problema comprueba en qué regiones de la granja caben los regalos requeridos.
+Cada forma de regalo está definida por celdas ocupadas, y cada región indica cuántas
+copias de cada forma debe colocar. La primera poda es por área: si la suma de áreas
+de todas las piezas requeridas supera el área de la región, no puede encajar.
+
+```java
+private int requiredArea(List<PresentShape> shapes, TreeRegion region) {
+    int area = 0;
+    for (int index = 0; index < shapes.size(); index++) {
+        area += shapes.get(index).area() * region.presentCounts().get(index);
+    }
+    return area;
+}
+```
+
+Para regiones pequeñas se hace una comprobación exacta con backtracking. Primero se
+generan todas las colocaciones posibles de cada pieza. Las rotaciones y reflexiones
+de una forma se normalizan para eliminar variantes duplicadas:
+
+```java
+public List<List<Cell>> variants() {
+    Set<List<Cell>> uniqueVariants = new HashSet<>();
+    for (int reflection : List.of(1, -1)) {
+        for (int rotation = 0; rotation < 4; rotation++) {
+            List<Cell> transformed = new ArrayList<>();
+            for (Cell cell : cells) {
+                int x = cell.x() * reflection;
+                int y = cell.y();
+                for (int turn = 0; turn < rotation; turn++) {
+                    int nextX = -y;
+                    y = x;
+                    x = nextX;
+                }
+                transformed.add(new Cell(x, y));
+            }
+            uniqueVariants.add(normalize(transformed));
+        }
+    }
+    return List.copyOf(uniqueVariants);
+}
+```
+
+Cada colocación se codifica como una máscara de bits. Dos piezas se solapan si sus
+máscaras tienen algún bit común:
+
+```java
+for (List<Cell> variant : shape.variants()) {
+    int variantWidth = variant.stream().mapToInt(Cell::x).max().orElseThrow() + 1;
+    int variantHeight = variant.stream().mapToInt(Cell::y).max().orElseThrow() + 1;
+    for (int y = 0; y <= region.height() - variantHeight; y++) {
+        for (int x = 0; x <= region.width() - variantWidth; x++) {
+            long mask = 0L;
+            for (Cell cell : variant) {
+                int bit = (y + cell.y()) * region.width() + x + cell.x();
+                mask |= 1L << bit;
+            }
+            placements.add(mask);
+        }
+    }
+}
+```
+
+El backtracking intenta colocar las piezas una a una. Si una colocación no se solapa
+con las celdas ocupadas, se avanza; si un estado ya falló antes, se reutiliza ese
+fallo con memoización:
+
+```java
+private boolean search(List<PiecePlacements> pieces,
+                       int pieceIndex,
+                       long occupiedCells,
+                       Map<SearchState, Boolean> memoizedFailures) {
+    if (pieceIndex == pieces.size()) {
+        return true;
+    }
+
+    SearchState state = new SearchState(pieceIndex, occupiedCells);
+    if (memoizedFailures.containsKey(state)) {
+        return false;
+    }
+
+    for (long placement : pieces.get(pieceIndex).placements()) {
+        if ((occupiedCells & placement) == 0
+                && search(pieces, pieceIndex + 1,
+                        occupiedCells | placement, memoizedFailures)) {
+            return true;
+        }
+    }
+
+    memoizedFailures.put(state, false);
+    return false;
+}
+```
+
+Para regiones grandes, la solución actual aplica una comprobación conservadora por
+área. Es una decisión práctica para mantener el coste acotado con el input actual.
+
+### Parte 2
+
+La parte 2 de este día no está implementada todavía en el proyecto. Cuando se añada
+el segundo enunciado, debería incorporarse como una nueva clase en `domain/part2`,
+reutilizando `TreeFarmPlan`, `PresentShape`, `TreeRegion` y las operaciones comunes
+de generación de variantes. Así se mantiene el mismo criterio de Abierto/Cerrado
+que en los días anteriores: añadir una regla nueva sin modificar la solución de la
+parte 1.
+
+Un punto de partida natural sería crear una calculadora específica:
+
+```java
+package domain.part2;
+
+import domain.common.TreeFarmPlan;
+
+public class FittingRegionCounterPart2 {
+    public long count(TreeFarmPlan plan) {
+        // aplicar aquí la regla nueva del segundo enunciado
+        throw new UnsupportedOperationException("Parte 2 pendiente");
+    }
+}
+```
+
+## Uso de Streams
+
+En este día los Streams se usan sobre todo para normalizar formas y generar
+colocaciones posibles.
+
+`PresentShape.normalize` busca primero el desplazamiento mínimo necesario para mover
+la figura al origen:
+
+```java
+int minX = cells.stream().mapToInt(Cell::x).min().orElseThrow();
+int minY = cells.stream().mapToInt(Cell::y).min().orElseThrow();
+```
+
+Cada stream recorre las celdas de la forma. `mapToInt(Cell::x)` y `mapToInt(Cell::y)`
+extraen coordenadas primitivas, `min()` obtiene la menor coordenada y `orElseThrow()`
+expresa que una forma siempre debe tener al menos una celda.
+
+Después se crea la forma normalizada:
+
+```java
+return cells.stream()
+        .map(cell -> new Cell(cell.x() - minX, cell.y() - minY))
+        .distinct()
+        .sorted(java.util.Comparator.comparingInt(Cell::y).thenComparingInt(Cell::x))
+        .toList();
+```
+
+`map` desplaza cada celda para que la figura empiece en `(0,0)`. `distinct` elimina
+celdas duplicadas, `sorted` ordena primero por fila (`y`) y luego por columna (`x`),
+y `toList()` devuelve una representación estable de la variante.
+
+En el backtracking se calculan dimensiones de cada variante:
+
+```java
+int variantWidth = variant.stream().mapToInt(Cell::x).max().orElseThrow() + 1;
+int variantHeight = variant.stream().mapToInt(Cell::y).max().orElseThrow() + 1;
+```
+
+Estos streams obtienen la coordenada máxima de la variante y suman `1` para convertir
+coordenadas en anchura y altura reales.
+
+Finalmente, las colocaciones generadas se limpian con:
+
+```java
+return placements.stream().distinct().toList();
+```
+
+El stream elimina máscaras repetidas que pueden aparecer cuando dos rotaciones o
+reflexiones producen la misma forma. `toList()` devuelve la lista de colocaciones
+únicas que usará el backtracking.
+
 ## Diseño de clases
 
 La solución está dividida en tres paquetes principales:
@@ -102,37 +277,64 @@ Contiene los detalles externos al dominio.
 - `TreeFarmSource`: interfaz para obtener las líneas de entrada.
 - `FileTreeFarmSource`: implementación que lee el plan desde un fichero.
 
+## Diagrama de clases
+
+```mermaid
+classDiagram
+    class Main
+    class TreeFarmSolver {
+        +solvePart1() long
+    }
+    class TreeFarmParser {
+        +parse(List~String~) TreeFarmPlan
+    }
+    class TreeFarmSource {
+        <<interface>>
+        +getLines() List~String~
+    }
+    class FileTreeFarmSource {
+        +getLines() List~String~
+    }
+    class TreeFarmPlan
+    class PresentShape
+    class TreeRegion
+    class Cell
+    class FittingRegionCounterPart1
+
+    Main --> TreeFarmSolver
+    Main --> FileTreeFarmSource
+    FileTreeFarmSource ..|> TreeFarmSource
+    TreeFarmSolver --> TreeFarmSource
+    TreeFarmSolver --> TreeFarmParser
+    TreeFarmParser --> TreeFarmPlan
+    TreeFarmPlan --> PresentShape
+    TreeFarmPlan --> TreeRegion
+    PresentShape --> Cell
+    TreeRegion --> Cell
+    FittingRegionCounterPart1 --> TreeFarmPlan
+```
+
 ## Principios aplicados
 
-### Abstracción
+### Principio de Responsabilidad Única (SRP)
 
-El dominio trabaja con conceptos propios del problema: forma, celda, región y plan de
-la granja. La lógica no depende de rutas de ficheros ni de consola.
+`TreeFarmParser` parsea la entrada, `PresentShape` representa formas y variantes, `TreeRegion` representa regiones, `TreeFarmPlan` agrupa el problema, `FittingRegionCounterPart1` comprueba encaje y `TreeFarmSolver` coordina.
 
-### Diseño por contrato
+### Principio Abierto/Cerrado (OCP)
 
-`PresentShape`, `TreeRegion` y `TreeFarmPlan` validan sus invariantes al construirse:
-índices válidos, dimensiones positivas, listas no vacías y un contador por cada
-forma de regalo.
+El dominio común (`Cell`, `PresentShape`, `TreeRegion`, `TreeFarmPlan`) queda preparado para reutilizarse cuando se añada una parte 2. Esa futura regla podría ir en `domain/part2` sin modificar la solución de la parte 1.
 
-### Alta cohesión y SRP
+### Principio de Sustitución de Liskov (LSP)
 
-Cada clase tiene una responsabilidad concreta:
+`TreeFarmSolver` depende de `TreeFarmSource`. Otra implementación que entregue las líneas del plan puede sustituir a `FileTreeFarmSource`.
 
-- `TreeFarmParser` solo parsea la entrada.
-- `PresentShape` solo representa una forma y sus variantes.
-- `TreeRegion` solo representa una región.
-- `FittingRegionCounterPart1` solo aplica la regla de la parte 1.
-- `FileTreeFarmSource` solo lee líneas de un fichero.
-- `TreeFarmSolver` solo coordina el caso de uso.
-- `Main` solo prepara dependencias y muestra la salida.
+### Principio de Segregación de la Interfaz (ISP)
 
-Esto sigue la idea de cohesión y responsabilidad única vista en teoría: cada módulo
-tiene una razón principal para cambiar.
+`TreeFarmSource` solo expone la lectura de líneas. No obliga a una fuente de datos a conocer formas, regiones ni backtracking.
 
-### Bajo acoplamiento
+### Principio de Inversión de Dependencias (DIP)
 
-`TreeFarmSolver` depende de `TreeFarmSource`, no de `FileTreeFarmSource`:
+La aplicación depende de `TreeFarmSource` y recibe la implementación concreta por constructor:
 
 ```java
 public TreeFarmSolver(TreeFarmSource source) {
@@ -140,42 +342,61 @@ public TreeFarmSolver(TreeFarmSource source) {
 }
 ```
 
-Esto permite cambiar el origen de datos sin modificar la lógica de aplicación.
+### Principio de Composición sobre Herencia (COI)
 
-### Inversión e inyección de dependencias
+La solución compone records pequeños (`Cell`, `PresentShape`, `TreeRegion`) y un servicio de dominio. No se crea una jerarquía de piezas o regiones abstractas.
 
-La lógica de alto nivel depende de una abstracción (`TreeFarmSource`). La
-implementación concreta se crea fuera y se inyecta por constructor:
+### Principio DRY
 
-```java
-TreeFarmSource source = new FileTreeFarmSource(inputPath);
-TreeFarmSolver solver = new TreeFarmSolver(source);
-```
+La normalización de formas, la generación de variantes y la representación de regiones están centralizadas en clases comunes. El backtracking no repite estructuras de coordenadas ni dimensiones.
 
-Así se separa la creación del objeto concreto de su uso, reduciendo acoplamiento.
+### Convención sobre Configuración (CoC)
 
-### Modularidad
+El módulo sigue las convenciones Maven, por lo que código, recursos y tests se encuentran sin configuración adicional.
 
-La división en paquetes separa responsabilidades:
+### Principio YAGNI
 
-- `domain/common`: conceptos compartidos del problema.
-- `domain/part1`: regla específica de la primera parte.
-- `application`: coordinación del caso de uso.
-- `infrastructure`: detalles técnicos de entrada.
+No se implementa todavía una parte 2 ni un empaquetador general de piezas. El código se limita a la regla disponible y deja el punto de extensión preparado.
 
-## Patrones y técnicas usadas
+## Patrones de diseño aplicados
 
-### Source / Adapter
+### Creacionales
 
-`TreeFarmSource` abstrae el origen de datos. `FileTreeFarmSource` adapta
-`Files.readAllLines` a una interfaz propia del proyecto.
+No se aplica ningún patrón creacional de forma explícita. No hace falta `Singleton`
+porque no existe ningún recurso global que deba tener una única instancia, y tampoco
+se usa `Factory Method` porque la creación de objetos es simple y directa.
 
-### Value Object
+### Estructurales
+
+Se refleja `Adapter` en `FileTreeFarmSource`. La aplicación trabaja con
+`TreeFarmSource`, mientras que `FileTreeFarmSource` adapta `Files.readAllLines` a esa
+interfaz propia del proyecto.
+
+No se aplica `Decorator`, porque no se añaden responsabilidades dinámicamente a un
+objeto envolviéndolo con otros objetos.
+
+### De comportamiento
+
+Se refleja `Iterator` mediante el uso de colecciones y bucles `for-each`, por ejemplo
+al recorrer regiones, formas y colocaciones. En Java este recorrido se apoya en
+`Iterable`/`Iterator`, aunque el código no cree el iterador manualmente.
+
+No se aplica `Command`, porque no hay objetos que encapsulen acciones ejecutables.
+Tampoco se aplica `Observer`, porque no hay suscripciones ni notificación de cambios.
+
+## Otras técnicas de diseño
+
+### Abstracción del origen de datos
+
+`TreeFarmSource` abstrae el origen de datos. El dominio no depende de si la entrada
+viene de un fichero, de memoria o de otro sistema.
+
+### Objeto de valor
 
 `Cell`, `PresentShape`, `TreeRegion` y `TreeFarmPlan` se modelan como `record`, por
 lo que representan valores del dominio definidos por sus datos.
 
-### Service
+### Servicio de dominio
 
 `FittingRegionCounterPart1` actúa como servicio de dominio: no representa una entidad
 con identidad propia, sino una operación que calcula el resultado de la parte 1.

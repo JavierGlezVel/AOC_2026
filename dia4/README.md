@@ -87,6 +87,99 @@ rollos adyacentes y, si alguno pasa a ser accesible, se añade a la cola.
 Esta solución aprovecha que el proceso es monotónico: retirar rollos nunca aumenta
 el número de vecinos de otro rollo.
 
+## Resolución detallada
+
+### Parte 1
+
+El mapa se modela como una cuadrícula rectangular donde `@` representa un rollo de
+papel. Para cada celda se comprueba si contiene un rollo y cuántos rollos hay en sus
+ocho posiciones vecinas. Un rollo es accesible si tiene como máximo tres rollos
+adyacentes.
+
+La responsabilidad de conocer los límites del mapa y las posiciones vecinas está en
+`PaperRollMap`:
+
+```java
+public List<GridPosition> adjacentPositions(GridPosition position) {
+    List<GridPosition> adjacentPositions = new ArrayList<>();
+
+    for (int rowOffset = -1; rowOffset <= 1; rowOffset++) {
+        for (int columnOffset = -1; columnOffset <= 1; columnOffset++) {
+            if (rowOffset == 0 && columnOffset == 0) {
+                continue;
+            }
+
+            GridPosition adjacent = new GridPosition(
+                    position.row() + rowOffset,
+                    position.column() + columnOffset
+            );
+            if (contains(adjacent)) {
+                adjacentPositions.add(adjacent);
+            }
+        }
+    }
+
+    return adjacentPositions;
+}
+```
+
+La calculadora de la parte 1 recorre toda la matriz y aplica la regla de acceso:
+
+```java
+for (int row = 0; row < map.height(); row++) {
+    for (int column = 0; column < map.width(); column++) {
+        GridPosition position = new GridPosition(row, column);
+        if (map.isPaperRollAt(position)
+                && map.countAdjacentPaperRolls(position) <= 3) {
+            accessiblePaperRolls++;
+        }
+    }
+}
+```
+
+### Parte 2
+
+En la segunda parte los rollos accesibles se retiran, y esa retirada puede hacer
+accesibles a otros rollos. La solución usa una cola: primero se encolan todos los
+rollos accesibles, luego se extraen uno a uno, se marcan como retirados y se
+actualiza el contador de adyacentes de sus vecinos.
+
+La clave es no recalcular toda la cuadrícula tras cada retirada. Se mantiene una
+matriz de rollos restantes y otra con el número actual de vecinos:
+
+```java
+boolean[][] remainingPaperRolls = copyPaperRolls(map);
+int[][] adjacentPaperRolls = countInitialAdjacentPaperRolls(map);
+Queue<GridPosition> accessiblePaperRolls = new ArrayDeque<>();
+```
+
+Cuando se retira un rollo, solo cambian sus vecinos inmediatos:
+
+```java
+while (!accessiblePaperRolls.isEmpty()) {
+    GridPosition position = accessiblePaperRolls.remove();
+    if (!remainingPaperRolls[position.row()][position.column()]) {
+        continue;
+    }
+
+    remainingPaperRolls[position.row()][position.column()] = false;
+    removedPaperRolls++;
+    updateAdjacentPaperRolls(map, position, remainingPaperRolls,
+            adjacentPaperRolls, queuedPaperRolls, accessiblePaperRolls);
+}
+```
+
+Y cada vecino que pasa a cumplir la regla se mete en la cola:
+
+```java
+if (remainingPaperRolls[position.row()][position.column()]
+        && adjacentPaperRolls[position.row()][position.column()] <= 3
+        && !queuedPaperRolls[position.row()][position.column()]) {
+    accessiblePaperRolls.add(position);
+    queuedPaperRolls[position.row()][position.column()] = true;
+}
+```
+
 ## Diseño de clases
 
 La solución está dividida en tres paquetes principales:
@@ -133,50 +226,62 @@ Contiene los detalles externos al dominio.
 - `DiagramSource`: interfaz para obtener las líneas de entrada.
 - `FileDiagramSource`: implementación que lee el mapa desde un fichero.
 
-## Principios aplicados
+## Diagrama de clases
 
-### Abstracción
+```mermaid
+classDiagram
+    class Main
+    class PrintingDepartmentSolver {
+        +solvePart1() long
+        +solvePart2() long
+    }
+    class PaperRollMapParser {
+        +parse(List~String~) PaperRollMap
+    }
+    class DiagramSource {
+        <<interface>>
+        +getLines() List~String~
+    }
+    class FileDiagramSource {
+        +getLines() List~String~
+    }
+    class PaperRollMap
+    class GridPosition
+    class AccessiblePaperRollCounterPart1
+    class RemovablePaperRollCounterPart2
 
-El dominio trabaja con conceptos propios del problema: mapa, posición y contador de
-rollos accesibles. El cálculo no necesita conocer cómo se lee el fichero ni cómo se
-muestra la respuesta por consola.
-
-`PaperRollMap` ofrece operaciones del dominio como `isPaperRollAt` y
-`countAdjacentPaperRolls`, ocultando los detalles de índices y límites.
-
-### Diseño por contrato
-
-`PaperRollMap` valida que el mapa sea utilizable:
-
-```java
-if (rows == null || rows.isEmpty()) {
-    throw new IllegalArgumentException("A paper roll map needs at least one row");
-}
+    Main --> PrintingDepartmentSolver
+    Main --> FileDiagramSource
+    FileDiagramSource ..|> DiagramSource
+    PrintingDepartmentSolver --> DiagramSource
+    PrintingDepartmentSolver --> PaperRollMapParser
+    PaperRollMapParser --> PaperRollMap
+    PaperRollMap --> GridPosition
+    AccessiblePaperRollCounterPart1 --> PaperRollMap
+    RemovablePaperRollCounterPart2 --> PaperRollMap
 ```
 
-También exige que todas las filas tengan la misma anchura y que solo aparezcan los
-caracteres `.` y `@`. Así, el contador puede trabajar confiando en que el mapa es
-rectangular y válido.
+## Principios aplicados
 
-### Alta cohesión y SRP
+### Principio de Responsabilidad Única (SRP)
 
-Cada clase tiene una responsabilidad concreta:
+`PaperRollMapParser`, `PaperRollMap`, `GridPosition`, `AccessiblePaperRollCounterPart1`, `RemovablePaperRollCounterPart2`, `FileDiagramSource` y `PrintingDepartmentSolver` tienen responsabilidades separadas. La lectura, el modelo de cuadrícula y las reglas de conteo no están mezcladas.
 
-- `PaperRollMapParser` solo parsea líneas de entrada.
-- `PaperRollMap` solo representa y valida el mapa.
-- `GridPosition` solo representa una coordenada.
-- `AccessiblePaperRollCounterPart1` solo aplica la regla de accesibilidad.
-- `RemovablePaperRollCounterPart2` solo aplica el proceso iterativo de retirada.
-- `FileDiagramSource` solo lee líneas de un fichero.
-- `PrintingDepartmentSolver` solo coordina el caso de uso.
-- `Main` solo prepara dependencias y muestra la salida.
+### Principio Abierto/Cerrado (OCP)
 
-Esto evita mezclar lectura de ficheros, validación del mapa, conteo de vecinos y
-salida por consola en una única clase.
+La parte 2 se añade como `RemovablePaperRollCounterPart2` sin modificar el contador de la parte 1 ni el modelo `PaperRollMap`. Una nueva regla de conteo podría incorporarse como otra clase en `domain/partX`.
 
-### Bajo acoplamiento
+### Principio de Sustitución de Liskov (LSP)
 
-`PrintingDepartmentSolver` depende de `DiagramSource`, no de `FileDiagramSource`:
+`PrintingDepartmentSolver` usa `DiagramSource`. Cualquier implementación de esa interfaz que entregue líneas de diagrama puede sustituir a `FileDiagramSource`.
+
+### Principio de Segregación de la Interfaz (ISP)
+
+`DiagramSource` es una interfaz mínima para leer líneas. No obliga a las fuentes de diagramas a implementar parseo, validación o salida por consola.
+
+### Principio de Inversión de Dependencias (DIP)
+
+El solver depende de la abstracción `DiagramSource`:
 
 ```java
 public PrintingDepartmentSolver(DiagramSource source) {
@@ -184,51 +289,63 @@ public PrintingDepartmentSolver(DiagramSource source) {
 }
 ```
 
-Esto permite cambiar el origen de datos sin modificar la lógica de aplicación.
+La lectura concreta desde fichero queda en infraestructura.
 
-### Inversión e inyección de dependencias
+### Principio de Composición sobre Herencia (COI)
 
-La lógica de alto nivel depende de una abstracción (`DiagramSource`). La
-implementación concreta se crea fuera y se inyecta por constructor:
+El solver compone el parser, el mapa y los contadores concretos. No se crea una jerarquía de contadores abstractos para compartir código.
 
-```java
-DiagramSource source = new FileDiagramSource(inputPath);
-PrintingDepartmentSolver solver = new PrintingDepartmentSolver(source);
-```
+### Principio DRY
 
-Así se separa la creación del objeto concreto de su uso.
+`PaperRollMap` concentra las operaciones comunes sobre la cuadrícula, como dimensiones, consulta de rollos y posiciones adyacentes. Las dos partes reutilizan esas operaciones.
 
-### Modularidad
+### Convención sobre Configuración (CoC)
 
-La división en paquetes separa responsabilidades:
+El día usa la estructura Maven convencional, igual que el resto de módulos, evitando configuración explícita para compilar recursos y tests.
 
-- `domain/common`: conceptos compartidos del problema.
-- `domain/part1`: regla específica de la primera parte.
-- `domain/part2`: regla específica de la segunda parte.
-- `application`: coordinación del caso de uso.
-- `infrastructure`: detalles técnicos de entrada.
+### Principio YAGNI
 
-Esto deja claro qué código pertenece a cada parte y qué código es compartido.
+No se implementa un motor genérico de simulación de cuadrículas. Solo se modelan las operaciones que exige el problema: vecinos, accesibilidad y retirada.
 
-### Polimorfismo
+## Patrones de diseño aplicados
 
-El polimorfismo aparece en `DiagramSource`. `FileDiagramSource` es la implementación
-actual, pero `PrintingDepartmentSolver` solo conoce la interfaz. Podría usarse otra
-implementación, como una fuente en memoria, sin cambiar el solver.
+### Creacionales
 
-## Patrones y técnicas usadas
+No se aplica ningún patrón creacional de forma explícita. No hace falta `Singleton`
+porque no existe ningún recurso global que deba tener una única instancia, y tampoco
+se usa `Factory Method` porque la creación de objetos es simple y directa.
 
-### Source / Adapter
+### Estructurales
 
-`DiagramSource` abstrae el origen de datos. `FileDiagramSource` adapta la lectura de
-`Files.readAllLines` a una interfaz propia del proyecto.
+Se refleja `Adapter` en `FileDiagramSource`. La aplicación trabaja con
+`DiagramSource`, mientras que `FileDiagramSource` adapta `Files.readAllLines` a esa
+interfaz propia del proyecto.
 
-### Value Object
+No se aplica `Decorator`, porque no se añaden responsabilidades dinámicamente a un
+objeto envolviéndolo con otros objetos.
+
+### De comportamiento
+
+Se refleja `Iterator` mediante el uso de colecciones y bucles `for-each`, por ejemplo
+al recorrer posiciones adyacentes del mapa. En Java este recorrido se apoya en
+`Iterable`/`Iterator`, aunque el código no cree el iterador manualmente.
+
+No se aplica `Command`, porque no hay objetos que encapsulen acciones ejecutables.
+Tampoco se aplica `Observer`, porque no hay suscripciones ni notificación de cambios.
+
+## Otras técnicas de diseño
+
+### Abstracción del origen de datos
+
+`DiagramSource` abstrae el origen de datos. El dominio no depende de si la entrada
+viene de un fichero, de memoria o de otro sistema.
+
+### Objeto de valor
 
 `GridPosition` se modela como `record`, por lo que representa un valor del dominio
 definido por sus datos (`row` y `column`).
 
-### Service
+### Servicio de dominio
 
 `AccessiblePaperRollCounterPart1` actúa como servicio de dominio: no representa una
 entidad con identidad propia, sino una operación que calcula el resultado de la parte
@@ -242,7 +359,7 @@ la regla iterativa de la parte 2.
 La parte 2 usa una cola para procesar rollos que ya cumplen la regla de acceso. Esto
 evita buscar desde cero en todo el mapa después de cada retirada.
 
-### Fachada de caso de uso
+### Orquestador de caso de uso
 
 `PrintingDepartmentSolver` ofrece métodos simples (`solvePart1` y `solvePart2`) que
 ocultan los pasos internos: leer entrada, parsear el mapa y calcular la respuesta.

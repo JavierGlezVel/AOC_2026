@@ -108,6 +108,155 @@ el polígono por filas:
 Esta técnica mantiene el cálculo exacto sin depender del tamaño real de las
 coordenadas.
 
+## Resolución detallada
+
+### Parte 1
+
+La primera parte busca el rectángulo de mayor área que puede formarse usando dos
+baldosas rojas como esquinas opuestas. Como no hay restricción de contención todavía,
+la solución compara todos los pares de baldosas rojas y calcula el área del
+rectángulo cerrado que determinan.
+
+El cálculo del área está en `RedTile`, porque depende únicamente de dos puntos:
+
+```java
+public long rectangleAreaWith(RedTile other) {
+    long width = Math.abs(x - other.x) + 1;
+    long height = Math.abs(y - other.y) + 1;
+    return width * height;
+}
+```
+
+La calculadora de la parte 1 recorre los pares sin repetir combinaciones:
+
+```java
+long largestArea = 0;
+for (int first = 0; first < redTiles.size(); first++) {
+    for (int second = first + 1; second < redTiles.size(); second++) {
+        long area = redTiles.get(first).rectangleAreaWith(redTiles.get(second));
+        largestArea = Math.max(largestArea, area);
+    }
+}
+
+return largestArea;
+```
+
+Este planteamiento es suficiente porque cada respuesta candidata está definida por
+dos vértices del conjunto de entrada.
+
+### Parte 2
+
+La segunda parte añade una restricción: el rectángulo elegido debe estar contenido
+dentro de la zona delimitada por las baldosas rojas y verdes. La solución mantiene
+la enumeración de pares, pero antes de aceptar un área comprueba si el rectángulo
+queda cubierto por la figura.
+
+Primero se construye `RedGreenTileArea`, que valida que los vértices formen un bucle
+ortogonal y precalcula qué intervalos de `x` están cubiertos para grupos de filas:
+
+```java
+private List<RowCoverage> buildRowCoverages() {
+    List<Long> yCoordinates = sortedYCoordinates();
+    List<RowCoverage> coverages = new ArrayList<>();
+
+    for (long y : yCoordinates) {
+        coverages.add(new RowCoverage(y, y, exactRowIntervals(y)));
+    }
+
+    for (int i = 0; i < yCoordinates.size() - 1; i++) {
+        long lowerY = yCoordinates.get(i);
+        long upperY = yCoordinates.get(i + 1);
+        long firstInteriorRow = lowerY + 1;
+        long lastInteriorRow = upperY - 1;
+
+        if (firstInteriorRow <= lastInteriorRow) {
+            coverages.add(new RowCoverage(firstInteriorRow, lastInteriorRow,
+                    openRowIntervals(lowerY + 0.5)));
+        }
+    }
+
+    return List.copyOf(coverages);
+}
+```
+
+Para comprobar un rectángulo se transforma en un intervalo horizontal y un rango de
+filas. Todas las coberturas que intersectan esas filas deben contener el intervalo
+completo de `x`:
+
+```java
+public boolean containsRectangle(RedTile firstCorner, RedTile secondCorner) {
+    long firstX = Math.min(firstCorner.x(), secondCorner.x());
+    long lastX = Math.max(firstCorner.x(), secondCorner.x());
+    long firstY = Math.min(firstCorner.y(), secondCorner.y());
+    long lastY = Math.max(firstCorner.y(), secondCorner.y());
+    ClosedInterval xInterval = new ClosedInterval(firstX, lastX);
+
+    return rowCoverages.stream()
+            .filter(rowCoverage -> rowCoverage.intersectsRows(firstY, lastY))
+            .allMatch(rowCoverage -> rowCoverage.containsXInterval(xInterval));
+}
+```
+
+La parte 2 solo actualiza el máximo cuando el rectángulo es más grande que el mejor
+actual y además está contenido:
+
+```java
+if (rectangleArea > largestArea
+        && area.containsRectangle(firstCorner, secondCorner)) {
+    largestArea = rectangleArea;
+}
+```
+
+## Uso de Streams
+
+En este día los Streams se usan para parsear, comprobar contención y ordenar o buscar
+intervalos.
+
+El parser convierte cada línea en una baldosa roja:
+
+```java
+return lines.stream()
+        .map(this::parseLine)
+        .toList();
+```
+
+`map(this::parseLine)` transforma texto en `RedTile`, y `toList()` devuelve la lista
+de vértices que usan las dos partes.
+
+La comprobación de si un rectángulo está dentro del área usa `filter` y `allMatch`:
+
+```java
+return rowCoverages.stream()
+        .filter(rowCoverage -> rowCoverage.intersectsRows(firstY, lastY))
+        .allMatch(rowCoverage -> rowCoverage.containsXInterval(xInterval));
+```
+
+El stream recorre las coberturas por filas. `filter` se queda solo con las coberturas
+que afectan al rango vertical del rectángulo. `allMatch` exige que todas esas
+coberturas contengan el intervalo horizontal completo; si alguna fila relevante no
+lo contiene, el rectángulo no cabe.
+
+`RowCoverage` usa `anyMatch` para comprobar si algún intervalo horizontal contiene
+otro intervalo:
+
+```java
+return xIntervals.stream()
+        .anyMatch(xInterval -> xInterval.contains(interval));
+```
+
+Aquí basta con encontrar un intervalo válido, por eso se usa `anyMatch`.
+
+También ordena intervalos con un stream:
+
+```java
+List<ClosedInterval> sortedIntervals = intervals.stream()
+        .sorted(Comparator.comparingLong(ClosedInterval::start))
+        .toList();
+```
+
+`sorted` coloca los intervalos por su inicio. Esa lista ordenada permite validarlos y
+trabajar con coberturas horizontales de forma predecible.
+
 ## Diseño de clases
 
 La solución está dividida en tres paquetes principales:
@@ -158,42 +307,74 @@ Contiene los detalles externos al dominio.
 - `RedTileSource`: interfaz para obtener las líneas de entrada.
 - `FileRedTileSource`: implementación que lee las baldosas desde un fichero.
 
+## Diagrama de clases
+
+```mermaid
+classDiagram
+    class Main
+    class MovieTheaterSolver {
+        +solvePart1() long
+        +solvePart2() long
+    }
+    class RedTileParser {
+        +parse(List~String~) List~RedTile~
+    }
+    class RedTileSource {
+        <<interface>>
+        +getLines() List~String~
+    }
+    class FileRedTileSource {
+        +getLines() List~String~
+    }
+    class RedTile
+    class ClosedInterval
+    class RowCoverage
+    class RedGreenTileArea
+    class LargestRectangleAreaCalculatorPart1
+    class LargestContainedRectangleAreaCalculatorPart2
+
+    Main --> MovieTheaterSolver
+    Main --> FileRedTileSource
+    FileRedTileSource ..|> RedTileSource
+    MovieTheaterSolver --> RedTileSource
+    MovieTheaterSolver --> RedTileParser
+    RedTileParser --> RedTile
+    RedGreenTileArea --> RedTile
+    RedGreenTileArea --> RowCoverage
+    RowCoverage --> ClosedInterval
+    LargestRectangleAreaCalculatorPart1 --> RedTile
+    LargestContainedRectangleAreaCalculatorPart2 --> RedGreenTileArea
+```
+
 ## Principios aplicados
 
-### Abstracción
+### Principio de Responsabilidad Única (SRP)
 
-El dominio trabaja con conceptos propios del problema: baldosa roja y área de
-rectángulo, intervalos de filas y área roja o verde. La lógica no depende de rutas
-de ficheros ni de consola.
+Cada clase tiene una responsabilidad clara:
 
-### Diseño por contrato
+- `RedTileParser` parsea coordenadas.
+- `RedTile` representa una baldosa y calcula áreas con otra.
+- `RedGreenTileArea` modela la zona contenida.
+- `RowCoverage` representa cobertura horizontal por filas.
+- `LargestRectangleAreaCalculatorPart1` resuelve la parte 1.
+- `LargestContainedRectangleAreaCalculatorPart2` resuelve la parte 2.
+- `MovieTheaterSolver` coordina el caso de uso.
 
-`RedTileParser` rechaza entradas vacías, líneas nulas, líneas sin dos coordenadas y
-coordenadas que no sean numéricas. `LargestRectangleAreaCalculatorPart1` exige al
-menos dos baldosas rojas. `RedGreenTileArea` exige un bucle con al menos cuatro
-vértices y que cada par consecutivo comparta fila o columna.
+### Principio Abierto/Cerrado (OCP)
 
-### Alta cohesión y SRP
+La parte 2 se añade como una clase nueva que reutiliza `RedTile`, `RedGreenTileArea`, el parser y la fuente de entrada. La calculadora de la parte 1 permanece cerrada a cambios.
 
-Cada clase tiene una responsabilidad concreta:
+### Principio de Sustitución de Liskov (LSP)
 
-- `RedTileParser` solo parsea coordenadas.
-- `RedTile` solo representa una posición y calcula áreas con otra baldosa.
-- `RedGreenTileArea` solo modela la zona roja o verde y responde consultas de
-  contención.
-- `RowCoverage` solo representa cobertura horizontal para filas comprimidas.
-- `LargestRectangleAreaCalculatorPart1` solo aplica la regla de la parte 1.
-- `LargestContainedRectangleAreaCalculatorPart2` solo aplica la regla de la parte 2.
-- `FileRedTileSource` solo lee líneas de un fichero.
-- `MovieTheaterSolver` solo coordina el caso de uso.
-- `Main` solo prepara dependencias y muestra la salida.
+`MovieTheaterSolver` depende de `RedTileSource`. Cualquier fuente que proporcione las líneas de baldosas puede sustituir a `FileRedTileSource` sin alterar el solver.
 
-Esto sigue la idea de cohesión y responsabilidad única vista en teoría: cada módulo
-tiene una razón principal para cambiar.
+### Principio de Segregación de la Interfaz (ISP)
 
-### Bajo acoplamiento
+`RedTileSource` solo representa la capacidad de leer líneas. La interfaz no obliga a implementar parseo, validación geométrica ni escritura.
 
-`MovieTheaterSolver` depende de `RedTileSource`, no de `FileRedTileSource`:
+### Principio de Inversión de Dependencias (DIP)
+
+El solver depende de la abstracción `RedTileSource`:
 
 ```java
 public MovieTheaterSolver(RedTileSource source) {
@@ -201,49 +382,63 @@ public MovieTheaterSolver(RedTileSource source) {
 }
 ```
 
-Esto permite cambiar el origen de datos sin modificar la lógica de aplicación.
+La infraestructura concreta queda fuera de la lógica de aplicación.
 
-### Inversión e inyección de dependencias
+### Principio de Composición sobre Herencia (COI)
 
-La lógica de alto nivel depende de una abstracción (`RedTileSource`). La
-implementación concreta se crea fuera y se inyecta por constructor:
+La geometría se construye componiendo `RedTile`, `ClosedInterval`, `RowCoverage` y `RedGreenTileArea`. No se crea una jerarquía general de figuras geométricas.
 
-```java
-RedTileSource source = new FileRedTileSource(inputPath);
-MovieTheaterSolver solver = new MovieTheaterSolver(source);
-```
+### Principio DRY
 
-Así se separa la creación del objeto concreto de su uso, reduciendo acoplamiento.
+`RedTile` centraliza coordenadas y cálculo de área; `RedGreenTileArea` centraliza la comprobación de contención. Las dos partes no duplican parseo ni representación de baldosas.
 
-### Modularidad
+### Convención sobre Configuración (CoC)
 
-La división en paquetes separa responsabilidades:
+El día respeta la estructura Maven común: fuentes, recursos y tests están en las rutas convencionales.
 
-- `domain/common`: conceptos compartidos del problema.
-- `domain/part1`: regla específica de la primera parte.
-- `domain/part2`: regla específica de la segunda parte.
-- `application`: coordinación del caso de uso.
-- `infrastructure`: detalles técnicos de entrada.
+### Principio YAGNI
 
-### Abierto/cerrado
+No se añade un motor geométrico general. Solo se implementa la geometría necesaria para rectángulos formados por baldosas del enunciado.
 
-La parte 2 se añade creando `LargestContainedRectangleAreaCalculatorPart2` y
-reutilizando `RedTile`, el parser y la infraestructura. La regla nueva se incorpora
-como extensión en `domain/part2`, sin modificar la calculadora de la parte 1.
+## Patrones de diseño aplicados
 
-## Patrones y técnicas usadas
+### Creacionales
 
-### Source / Adapter
+No se aplica ningún patrón creacional de forma explícita. No hace falta `Singleton`
+porque no existe ningún recurso global que deba tener una única instancia, y tampoco
+se usa `Factory Method` porque la creación de objetos es simple y directa.
 
-`RedTileSource` abstrae el origen de datos. `FileRedTileSource` adapta
-`Files.readAllLines` a una interfaz propia del proyecto.
+### Estructurales
 
-### Value Object
+Se refleja `Adapter` en `FileRedTileSource`. La aplicación trabaja con
+`RedTileSource`, mientras que `FileRedTileSource` adapta `Files.readAllLines` a esa
+interfaz propia del proyecto.
+
+No se aplica `Decorator`, porque no se añaden responsabilidades dinámicamente a un
+objeto envolviéndolo con otros objetos.
+
+### De comportamiento
+
+Se refleja `Iterator` mediante el uso de colecciones y bucles `for-each`, por ejemplo
+al recorrer baldosas e intervalos. En Java este recorrido se apoya en
+`Iterable`/`Iterator`, aunque el código no cree el iterador manualmente.
+
+No se aplica `Command`, porque no hay objetos que encapsulen acciones ejecutables.
+Tampoco se aplica `Observer`, porque no hay suscripciones ni notificación de cambios.
+
+## Otras técnicas de diseño
+
+### Abstracción del origen de datos
+
+`RedTileSource` abstrae el origen de datos. El dominio no depende de si la entrada
+viene de un fichero, de memoria o de otro sistema.
+
+### Objeto de valor
 
 `RedTile` se modela como `record`, por lo que representa un valor del dominio
 definido por sus coordenadas.
 
-### Service
+### Servicio de dominio
 
 `LargestRectangleAreaCalculatorPart1` y `LargestContainedRectangleAreaCalculatorPart2`
 actúan como servicios de dominio: no representan entidades con identidad propia,

@@ -97,6 +97,182 @@ de arriba abajo en esa columna.
 cada problema delegando en `MathOperation`, y suman los resultados con `BigInteger`
 para evitar desbordamientos cuando un ejercicio contiene multiplicaciones grandes.
 
+## Resolución detallada
+
+### Parte 1
+
+La entrada se interpreta como una hoja de cálculo dibujada con texto. Primero se
+normalizan las líneas para que todas tengan la misma anchura y después se localizan
+los bloques de columnas separados por columnas en blanco. Cada bloque contiene un
+problema matemático y una operación (`+` o `*`) en la última fila.
+
+```java
+private List<ColumnRange> findProblemRanges(List<String> lines) {
+    int width = lines.getFirst().length();
+    List<ColumnRange> problemRanges = new ArrayList<>();
+    int column = 0;
+
+    while (column < width) {
+        while (column < width && isBlankColumn(lines, column)) {
+            column++;
+        }
+        if (column == width) {
+            break;
+        }
+
+        int startColumn = column;
+        while (column < width && !isBlankColumn(lines, column)) {
+            column++;
+        }
+        problemRanges.add(new ColumnRange(startColumn, column));
+    }
+
+    return problemRanges;
+}
+```
+
+En la parte 1 los números se leen de arriba abajo dentro de cada bloque. Cada fila
+no vacía se convierte en un `BigInteger` para evitar desbordamientos:
+
+```java
+private MathProblem parseProblemTopToBottom(List<String> lines, ColumnRange range) {
+    List<BigInteger> numbers = new ArrayList<>();
+    int operationRowIndex = lines.size() - 1;
+
+    for (int row = 0; row < operationRowIndex; row++) {
+        String value = lines.get(row)
+                .substring(range.startColumn(), range.endColumn())
+                .trim();
+        if (!value.isEmpty()) {
+            numbers.add(new BigInteger(value));
+        }
+    }
+
+    return new MathProblem(numbers, parseOperation(lines, range));
+}
+```
+
+Después se aplica la operación de cada problema y se suma el total:
+
+```java
+return problems.stream()
+        .map(problem -> problem.operation().apply(problem.numbers()))
+        .reduce(BigInteger.ZERO, BigInteger::add);
+```
+
+### Parte 2
+
+La segunda parte mantiene el mismo modelo `MathProblem`, pero cambia cómo se leen
+los operandos: ahora se recorren los bloques de derecha a izquierda y, dentro de
+cada columna, se construye un número con los dígitos verticales.
+
+```java
+public List<MathProblem> parseRightToLeft(List<String> lines) {
+    List<String> normalizedLines = normalize(lines);
+    List<ColumnRange> problemRanges = findProblemRanges(normalizedLines);
+    List<MathProblem> problems = new ArrayList<>();
+
+    for (int i = problemRanges.size() - 1; i >= 0; i--) {
+        problems.add(parseProblemRightToLeft(normalizedLines, problemRanges.get(i)));
+    }
+
+    return problems;
+}
+```
+
+La lectura vertical toma cada columna del bloque desde la derecha hacia la izquierda
+y concatena los caracteres no vacíos de las filas de números:
+
+```java
+for (int column = range.endColumn() - 1; column >= range.startColumn(); column--) {
+    StringBuilder value = new StringBuilder();
+    for (int row = 0; row < operationRowIndex; row++) {
+        char digit = lines.get(row).charAt(column);
+        if (digit != ' ') {
+            value.append(digit);
+        }
+    }
+    if (!value.isEmpty()) {
+        numbers.add(new BigInteger(value.toString()));
+    }
+}
+```
+
+El cálculo final no cambia: una vez parseados los problemas, `+` y `*` se aplican
+mediante el mismo `enum MathOperation`.
+
+```java
+ADD('+') {
+    @Override
+    public BigInteger apply(List<BigInteger> numbers) {
+        return numbers.stream().reduce(BigInteger.ZERO, BigInteger::add);
+    }
+}
+```
+
+## Uso de Streams
+
+Este día usa Streams en el parser y en las operaciones matemáticas.
+
+Para normalizar la hoja, primero se calcula la anchura máxima de todas las líneas:
+
+```java
+int width = lines.stream()
+        .mapToInt(String::length)
+        .max()
+        .orElse(0);
+```
+
+El stream recorre las líneas de entrada. `mapToInt(String::length)` convierte cada
+línea en su longitud y `max()` obtiene la mayor. Ese ancho se usa para rellenar con
+espacios las líneas más cortas.
+
+La normalización también usa un stream:
+
+```java
+return lines.stream()
+        .map(line -> line + " ".repeat(width - line.length()))
+        .toList();
+```
+
+Aquí `map` transforma cada línea añadiendo los espacios que faltan para alcanzar la
+anchura común. `toList()` devuelve la lista normalizada que luego puede recorrerse
+por columnas sin salirse de rango.
+
+Para detectar columnas vacías se usa `allMatch`:
+
+```java
+return lines.stream().allMatch(line -> line.charAt(column) == ' ');
+```
+
+El stream comprueba la misma columna en todas las líneas. `allMatch` solo devuelve
+`true` si todas tienen un espacio en esa posición; por eso sirve para separar
+bloques de problemas.
+
+Las operaciones `+` y `*` también se expresan con Streams sobre los números del
+problema:
+
+```java
+return numbers.stream()
+        .reduce(BigInteger.ZERO, BigInteger::add);
+```
+
+`reduce` empieza en `BigInteger.ZERO` y va sumando cada número. Para la multiplicación
+se usa el mismo patrón, pero empezando en `BigInteger.ONE` y aplicando
+`BigInteger::multiply`.
+
+Finalmente, las dos partes calculan el total de la hoja aplicando cada operación y
+sumando los resultados:
+
+```java
+return problems.stream()
+        .map(problem -> problem.operation().apply(problem.numbers()))
+        .reduce(BigInteger.ZERO, BigInteger::add);
+```
+
+El stream parte de `List<MathProblem>`. `map` transforma cada problema en su resultado
+numérico y `reduce` suma todos esos resultados para obtener el total final.
+
 ## Diseño de clases
 
 La solución está dividida en tres paquetes principales:
@@ -143,39 +319,62 @@ Contiene los detalles externos al dominio.
 - `WorksheetSource`: interfaz para obtener las líneas de entrada.
 - `FileWorksheetSource`: implementación que lee la hoja desde un fichero.
 
+## Diagrama de clases
+
+```mermaid
+classDiagram
+    class Main
+    class TrashCompactorSolver {
+        +solvePart1() long
+        +solvePart2() long
+    }
+    class MathWorksheetParser {
+        +parse(List~String~) List~MathProblem~
+    }
+    class WorksheetSource {
+        <<interface>>
+        +getLines() List~String~
+    }
+    class FileWorksheetSource {
+        +getLines() List~String~
+    }
+    class MathProblem
+    class MathOperation
+    class WorksheetGrandTotalCalculatorPart1
+    class WorksheetGrandTotalCalculatorPart2
+
+    Main --> TrashCompactorSolver
+    Main --> FileWorksheetSource
+    FileWorksheetSource ..|> WorksheetSource
+    TrashCompactorSolver --> WorksheetSource
+    TrashCompactorSolver --> MathWorksheetParser
+    MathWorksheetParser --> MathProblem
+    MathProblem --> MathOperation
+    WorksheetGrandTotalCalculatorPart1 --> MathProblem
+    WorksheetGrandTotalCalculatorPart2 --> MathProblem
+```
+
 ## Principios aplicados
 
-### Abstracción
+### Principio de Responsabilidad Única (SRP)
 
-El dominio trabaja con conceptos propios del problema: ejercicio matemático,
-operación y total de la hoja. La lógica de cálculo no depende de rutas de ficheros ni
-de consola.
+`MathWorksheetParser` parsea la hoja, `MathProblem` representa un ejercicio, `MathOperation` encapsula las operaciones, cada calculadora resuelve una parte y `TrashCompactorSolver` coordina el caso de uso.
 
-### Diseño por contrato
+### Principio Abierto/Cerrado (OCP)
 
-`MathProblem` valida sus invariantes al construirse: exige al menos un número y una
-operación no nula. `MathOperation.fromSymbol` rechaza cualquier símbolo distinto de
-`+` o `*`.
+La parte 2 cambia la forma de parsear los operandos, pero reutiliza `MathProblem`, `MathOperation` y el cálculo final. Una nueva parte podría añadir otro método de parseo o calculadora sin modificar las reglas ya cerradas.
 
-### Alta cohesión y SRP
+### Principio de Sustitución de Liskov (LSP)
 
-Cada clase tiene una responsabilidad concreta:
+`TrashCompactorSolver` depende de `WorksheetSource`. Cualquier implementación que proporcione líneas de hoja puede reemplazar a `FileWorksheetSource`.
 
-- `MathWorksheetParser` solo parsea la entrada horizontal.
-- `MathProblem` solo representa y valida un ejercicio.
-- `MathOperation` solo encapsula las operaciones disponibles.
-- `WorksheetGrandTotalCalculatorPart1` solo aplica la regla de la parte 1.
-- `WorksheetGrandTotalCalculatorPart2` solo aplica la regla de la parte 2.
-- `FileWorksheetSource` solo lee líneas de un fichero.
-- `TrashCompactorSolver` solo coordina el caso de uso.
-- `Main` solo prepara dependencias y muestra la salida.
+### Principio de Segregación de la Interfaz (ISP)
 
-Esto sigue la idea de cohesión y responsabilidad única vista en teoría: cada módulo
-tiene una única razón principal para cambiar.
+`WorksheetSource` tiene una responsabilidad mínima: leer líneas. No obliga a implementar escritura, parseo ni operaciones matemáticas.
 
-### Bajo acoplamiento
+### Principio de Inversión de Dependencias (DIP)
 
-`TrashCompactorSolver` depende de `WorksheetSource`, no de `FileWorksheetSource`:
+El solver depende de la abstracción `WorksheetSource` y recibe la implementación por constructor:
 
 ```java
 public TrashCompactorSolver(WorksheetSource source) {
@@ -183,49 +382,67 @@ public TrashCompactorSolver(WorksheetSource source) {
 }
 ```
 
-Esto permite cambiar el origen de datos sin modificar la lógica de aplicación.
+### Principio de Composición sobre Herencia (COI)
 
-### Inversión e inyección de dependencias
+El solver compone fuente, parser y calculadoras concretas. No se usa herencia para compartir la suma final ni para representar operaciones.
 
-La lógica de alto nivel depende de una abstracción (`WorksheetSource`). La
-implementación concreta se crea fuera y se inyecta por constructor:
+### Principio DRY
 
-```java
-WorksheetSource source = new FileWorksheetSource(inputPath);
-TrashCompactorSolver solver = new TrashCompactorSolver(source);
-```
+`MathProblem` y `MathOperation` son comunes a las dos partes. Cambia el parseo de los operandos, pero la aplicación de `+` y `*` no se duplica.
 
-Así se separa la creación del objeto concreto de su uso, reduciendo acoplamiento.
+### Convención sobre Configuración (CoC)
 
-### Modularidad
+El módulo respeta las convenciones Maven de carpetas, lo que permite ejecutarlo dentro del proyecto sin configuración adicional.
 
-La división en paquetes separa responsabilidades:
+### Principio YAGNI
 
-- `domain/common`: conceptos compartidos del problema.
-- `domain/part1`: regla específica de la primera parte.
-- `domain/part2`: regla específica de la segunda parte.
-- `application`: coordinación del caso de uso.
-- `infrastructure`: detalles técnicos de entrada.
+No se implementa un parser de expresiones general. El código soporta exactamente lo que pide el reto: bloques de números y operaciones `+` o `*`.
 
-## Patrones y técnicas usadas
+## Patrones de diseño aplicados
 
-### Source / Adapter
+### Creacionales
 
-`WorksheetSource` abstrae el origen de datos. `FileWorksheetSource` adapta
-`Files.readAllLines` a una interfaz propia del proyecto.
+No se aplica ningún patrón creacional de forma explícita. No hace falta `Singleton`
+porque no existe ningún recurso global que deba tener una única instancia, y tampoco
+se usa `Factory Method` porque la creación de objetos es simple y directa.
 
-### Value Object
+### Estructurales
+
+Se refleja `Adapter` en `FileWorksheetSource`. La aplicación trabaja con
+`WorksheetSource`, mientras que `FileWorksheetSource` adapta `Files.readAllLines` a
+esa interfaz propia del proyecto.
+
+No se aplica `Decorator`, porque no se añaden responsabilidades dinámicamente a un
+objeto envolviéndolo con otros objetos.
+
+### De comportamiento
+
+Se refleja `Iterator` mediante el uso de colecciones y bucles `for-each`, por ejemplo
+al recorrer problemas y operaciones. En Java este recorrido se apoya en
+`Iterable`/`Iterator`, aunque el código no cree el iterador manualmente.
+
+No se aplica `Command`, porque no hay objetos que encapsulen acciones ejecutables.
+Tampoco se aplica `Observer`, porque no hay suscripciones ni notificación de cambios.
+
+## Otras técnicas de diseño
+
+### Abstracción del origen de datos
+
+`WorksheetSource` abstrae el origen de datos. El dominio no depende de si la entrada
+viene de un fichero, de memoria o de otro sistema.
+
+### Objeto de valor
 
 `MathProblem` se modela como `record`, por lo que representa un valor del dominio
 definido por sus datos. Además, valida sus invariantes al construirse.
 
-### Strategy con `enum`
+### Operación polimórfica con `enum`
 
 `MathOperation` encapsula el algoritmo de cada operación. El calculador no necesita
 un condicional para saber cómo sumar o multiplicar; solo delega en la operación del
 problema.
 
-### Service
+### Servicio de dominio
 
 `WorksheetGrandTotalCalculatorPart1` actúa como servicio de dominio: no representa
 una entidad con identidad propia, sino una operación que calcula el resultado de la
@@ -234,7 +451,7 @@ parte 1.
 `WorksheetGrandTotalCalculatorPart2` también actúa como servicio de dominio, pero
 para la lectura por columnas de la segunda parte.
 
-### Fachada de caso de uso
+### Orquestador de caso de uso
 
 `TrashCompactorSolver` ofrece `solvePart1` y `solvePart2`, ocultando los pasos
 internos: leer entrada, parsear la hoja y calcular la respuesta.

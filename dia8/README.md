@@ -84,6 +84,136 @@ ordenada, pero aplican reglas distintas:
 su representante de circuito, el tamaño de cada componente conectada y cuántos
 circuitos quedan activos.
 
+## Resolución detallada
+
+### Parte 1
+
+Cada caja de conexión tiene coordenadas tridimensionales. Primero se generan todas
+las conexiones posibles entre pares de cajas y se ordenan por distancia euclídea al
+cuadrado. No se necesita la raíz cuadrada, porque comparar distancias al cuadrado
+mantiene el mismo orden y evita operaciones de coma flotante.
+
+```java
+for (int first = 0; first < junctionBoxes.size(); first++) {
+    for (int second = first + 1; second < junctionBoxes.size(); second++) {
+        long distanceSquared = junctionBoxes.get(first)
+                .distanceSquaredTo(junctionBoxes.get(second));
+        candidates.add(new ConnectionCandidate(first, second, distanceSquared));
+    }
+}
+
+candidates.sort(Comparator.comparingLong(ConnectionCandidate::distanceSquared)
+        .thenComparingInt(ConnectionCandidate::firstIndex)
+        .thenComparingInt(ConnectionCandidate::secondIndex));
+```
+
+La parte 1 procesa las primeras 1000 conexiones ordenadas y une las cajas con una
+estructura de unión-búsqueda (`CircuitNetwork`). Al final toma los tres circuitos
+más grandes y multiplica sus tamaños:
+
+```java
+for (int i = 0; i < processedConnections; i++) {
+    ConnectionCandidate candidate = candidates.get(i);
+    network.connect(candidate.firstIndex(), candidate.secondIndex());
+}
+
+return network.largestCircuitSizes(3).stream()
+        .mapToLong(Integer::longValue)
+        .reduce(1L, (left, right) -> left * right);
+```
+
+La unión-búsqueda mantiene el representante de cada circuito y comprime caminos
+para que las consultas posteriores sean más rápidas:
+
+```java
+private int find(int element) {
+    if (parents[element] != element) {
+        parents[element] = find(parents[element]);
+    }
+    return parents[element];
+}
+```
+
+### Parte 2
+
+La segunda parte procesa conexiones en el mismo orden, pero se detiene justo cuando
+todas las cajas quedan conectadas en un único circuito. La respuesta se calcula con
+las coordenadas `x` de las dos cajas de la conexión que provoca esa unión final.
+
+```java
+for (ConnectionCandidate candidate : candidates) {
+    boolean connectedDifferentCircuits =
+            network.connect(candidate.firstIndex(), candidate.secondIndex());
+
+    if (connectedDifferentCircuits && network.isSingleCircuit()) {
+        JunctionBox first = junctionBoxes.get(candidate.firstIndex());
+        JunctionBox second = junctionBoxes.get(candidate.secondIndex());
+        return first.x() * second.x();
+    }
+}
+```
+
+La llamada a `connect` devuelve `false` cuando la conexión une dos cajas que ya
+pertenecían al mismo circuito. Ese detalle evita aceptar como conexión final una
+arista redundante.
+
+```java
+public boolean connect(int first, int second) {
+    int firstRoot = find(first);
+    int secondRoot = find(second);
+
+    if (firstRoot == secondRoot) {
+        return false;
+    }
+
+    parents[secondRoot] = firstRoot;
+    circuitCount--;
+    return true;
+}
+```
+
+## Uso de Streams
+
+En este día los Streams aparecen en el parseo, en la selección de circuitos grandes
+y en el producto final de la parte 1.
+
+El parser convierte cada línea del input en una caja de conexión:
+
+```java
+return lines.stream()
+        .map(this::parseLine)
+        .toList();
+```
+
+El stream parte de las líneas del fichero. `map(this::parseLine)` transforma cada
+línea textual en un `JunctionBox`, y `toList()` devuelve la lista de cajas ya
+parseadas.
+
+`CircuitNetwork` usa otro stream para devolver los circuitos más grandes:
+
+```java
+return circuitSizes.stream()
+        .sorted(Comparator.reverseOrder())
+        .limit(count)
+        .toList();
+```
+
+Primero se han recogido los tamaños de todos los componentes conectados. El stream
+los ordena de mayor a menor con `sorted(Comparator.reverseOrder())`, toma solo los
+`count` primeros con `limit(count)` y materializa el resultado con `toList()`.
+
+La parte 1 multiplica los tamaños de los tres circuitos mayores:
+
+```java
+return network.largestCircuitSizes(CIRCUITS_TO_MULTIPLY).stream()
+        .mapToLong(Integer::longValue)
+        .reduce(1L, (left, right) -> left * right);
+```
+
+El stream parte de una lista de `Integer`. `mapToLong` convierte cada tamaño a `long`
+para evitar trabajar con envoltorios, y `reduce` acumula el producto empezando en
+`1L`.
+
 ## Diseño de clases
 
 La solución está dividida en tres paquetes principales:
@@ -135,41 +265,67 @@ Contiene los detalles externos al dominio.
 - `JunctionBoxSource`: interfaz para obtener las líneas de entrada.
 - `FileJunctionBoxSource`: implementación que lee las cajas desde un fichero.
 
+## Diagrama de clases
+
+```mermaid
+classDiagram
+    class Main
+    class PlaygroundSolver {
+        +solvePart1() long
+        +solvePart2() long
+    }
+    class JunctionBoxParser {
+        +parse(List~String~) List~JunctionBox~
+    }
+    class JunctionBoxSource {
+        <<interface>>
+        +getLines() List~String~
+    }
+    class FileJunctionBoxSource {
+        +getLines() List~String~
+    }
+    class JunctionBox
+    class ConnectionCandidate
+    class ConnectionCandidateGenerator
+    class CircuitNetwork
+    class CircuitSizeProductCalculatorPart1
+    class FinalConnectionXProductCalculatorPart2
+
+    Main --> PlaygroundSolver
+    Main --> FileJunctionBoxSource
+    FileJunctionBoxSource ..|> JunctionBoxSource
+    PlaygroundSolver --> JunctionBoxSource
+    PlaygroundSolver --> JunctionBoxParser
+    JunctionBoxParser --> JunctionBox
+    ConnectionCandidateGenerator --> JunctionBox
+    ConnectionCandidateGenerator --> ConnectionCandidate
+    CircuitSizeProductCalculatorPart1 --> ConnectionCandidateGenerator
+    CircuitSizeProductCalculatorPart1 --> CircuitNetwork
+    FinalConnectionXProductCalculatorPart2 --> ConnectionCandidateGenerator
+    FinalConnectionXProductCalculatorPart2 --> CircuitNetwork
+```
+
 ## Principios aplicados
 
-### Abstracción
+### Principio de Responsabilidad Única (SRP)
 
-El dominio trabaja con conceptos propios del problema: caja de conexión, red de
-circuitos, conexiones candidatas y cálculos de cada parte. La lógica no depende de
-rutas de ficheros ni de consola.
+`JunctionBoxParser` parsea coordenadas, `JunctionBox` representa puntos 3D, `ConnectionCandidateGenerator` genera aristas ordenadas, `CircuitNetwork` gestiona unión-búsqueda y cada calculadora aplica una regla del enunciado.
 
-### Diseño por contrato
+### Principio Abierto/Cerrado (OCP)
 
-`JunctionBoxParser` rechaza entradas vacías, líneas nulas, líneas sin tres
-coordenadas y coordenadas que no sean numéricas. `CircuitNetwork` exige al menos un
-elemento, `CircuitSizeProductCalculatorPart1` exige al menos tres cajas y
-`FinalConnectionXProductCalculatorPart2` exige al menos dos cajas.
+La parte 2 se añadió con `FinalConnectionXProductCalculatorPart2` reutilizando `JunctionBox`, `ConnectionCandidateGenerator` y `CircuitNetwork`. La parte 1 no necesitó cambios.
 
-### Alta cohesión y SRP
+### Principio de Sustitución de Liskov (LSP)
 
-Cada clase tiene una responsabilidad concreta:
+`PlaygroundSolver` depende de `JunctionBoxSource`. Otra fuente que entregue las líneas de cajas de conexión puede sustituir a `FileJunctionBoxSource`.
 
-- `JunctionBoxParser` solo parsea coordenadas.
-- `JunctionBox` solo representa una posición 3D y calcula distancias.
-- `ConnectionCandidateGenerator` solo genera conexiones candidatas ordenadas.
-- `CircuitNetwork` solo gestiona componentes conectadas.
-- `CircuitSizeProductCalculatorPart1` solo aplica la regla de la parte 1.
-- `FinalConnectionXProductCalculatorPart2` solo aplica la regla de la parte 2.
-- `FileJunctionBoxSource` solo lee líneas de un fichero.
-- `PlaygroundSolver` solo coordina el caso de uso.
-- `Main` solo prepara dependencias y muestra la salida.
+### Principio de Segregación de la Interfaz (ISP)
 
-Esto sigue la idea de cohesión y responsabilidad única vista en teoría: cada módulo
-tiene una razón principal para cambiar.
+`JunctionBoxSource` mantiene una interfaz mínima. No mezcla lectura de datos con generación de conexiones ni cálculo de circuitos.
 
-### Bajo acoplamiento
+### Principio de Inversión de Dependencias (DIP)
 
-`PlaygroundSolver` depende de `JunctionBoxSource`, no de `FileJunctionBoxSource`:
+La coordinación de la aplicación depende de `JunctionBoxSource` y no de la fuente concreta:
 
 ```java
 public PlaygroundSolver(JunctionBoxSource source) {
@@ -177,50 +333,61 @@ public PlaygroundSolver(JunctionBoxSource source) {
 }
 ```
 
-Esto permite cambiar el origen de datos sin modificar la lógica de aplicación.
+### Principio de Composición sobre Herencia (COI)
 
-### Inversión e inyección de dependencias
+Las calculadoras componen `ConnectionCandidateGenerator` y `CircuitNetwork`. No existe herencia entre redes ni entre calculadores.
 
-La lógica de alto nivel depende de una abstracción (`JunctionBoxSource`). La
-implementación concreta se crea fuera y se inyecta por constructor:
+### Principio DRY
 
-```java
-JunctionBoxSource source = new FileJunctionBoxSource(inputPath);
-PlaygroundSolver solver = new PlaygroundSolver(source);
-```
+La generación y ordenación de conexiones posibles está centralizada en `ConnectionCandidateGenerator`. Las dos partes reutilizan el mismo orden de candidatos.
 
-Así se separa la creación del objeto concreto de su uso, reduciendo acoplamiento.
+### Convención sobre Configuración (CoC)
 
-### Modularidad
+El módulo usa la convención Maven estándar y se ejecuta como parte del reactor sin configuración adicional.
 
-La división en paquetes separa responsabilidades:
+### Principio YAGNI
 
-- `domain/common`: conceptos compartidos del problema.
-- `domain/part1`: regla específica de la primera parte.
-- `domain/part2`: regla específica de la segunda parte.
-- `application`: coordinación del caso de uso.
-- `infrastructure`: detalles técnicos de entrada.
+No se implementa una biblioteca general de grafos. La estructura `CircuitNetwork` contiene solo lo necesario: unir componentes, saber si queda un circuito y obtener tamaños.
 
-### Abierto/cerrado
+## Patrones de diseño aplicados
 
-La parte 2 se ha anadido creando `FinalConnectionXProductCalculatorPart2` y
-reutilizando `JunctionBox`, `CircuitNetwork` y `ConnectionCandidateGenerator`. Esto
-mantiene las clases del dominio comun abiertas a reutilizacion por nuevas reglas y
-cerradas frente a cambios innecesarios cuando aparece una nueva parte del problema.
+### Creacionales
 
-## Patrones y técnicas usadas
+No se aplica ningún patrón creacional de forma explícita. No hace falta `Singleton`
+porque no existe ningún recurso global que deba tener una única instancia, y tampoco
+se usa `Factory Method` porque la creación de objetos es simple y directa.
 
-### Source / Adapter
+### Estructurales
 
-`JunctionBoxSource` abstrae el origen de datos. `FileJunctionBoxSource` adapta
-`Files.readAllLines` a una interfaz propia del proyecto.
+Se refleja `Adapter` en `FileJunctionBoxSource`. La aplicación trabaja con
+`JunctionBoxSource`, mientras que `FileJunctionBoxSource` adapta `Files.readAllLines`
+a esa interfaz propia del proyecto.
 
-### Value Object
+No se aplica `Decorator`, porque no se añaden responsabilidades dinámicamente a un
+objeto envolviéndolo con otros objetos.
+
+### De comportamiento
+
+Se refleja `Iterator` mediante el uso de colecciones y bucles `for-each`, por ejemplo
+al recorrer candidatos de conexión. En Java este recorrido se apoya en
+`Iterable`/`Iterator`, aunque el código no cree el iterador manualmente.
+
+No se aplica `Command`, porque no hay objetos que encapsulen acciones ejecutables.
+Tampoco se aplica `Observer`, porque no hay suscripciones ni notificación de cambios.
+
+## Otras técnicas de diseño
+
+### Abstracción del origen de datos
+
+`JunctionBoxSource` abstrae el origen de datos. El dominio no depende de si la
+entrada viene de un fichero, de memoria o de otro sistema.
+
+### Objeto de valor
 
 `JunctionBox` se modela como `record`, por lo que representa un valor del dominio
 definido por sus coordenadas.
 
-### Service
+### Servicio de dominio
 
 `CircuitSizeProductCalculatorPart1` y `FinalConnectionXProductCalculatorPart2`
 actúan como servicios de dominio: no representan entidades con identidad propia,
