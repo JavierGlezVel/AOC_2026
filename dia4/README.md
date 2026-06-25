@@ -283,6 +283,35 @@ classDiagram
     RemovablePaperRollCounterPart2 --> PaperRollMap
 ```
 
+## Fundamentos de diseño aplicados
+
+### Alta Cohesión
+
+`PaperRollMap` concentra las operaciones de cuadrícula, `GridPosition` representa
+coordenadas y cada contador aplica una regla concreta. La lógica de vecinos no está
+duplicada dentro de los contadores.
+
+### Bajo Acoplamiento
+
+`PrintingDepartmentSolver` depende de `DiagramSource`, no de la fuente de fichero.
+Los contadores trabajan con `PaperRollMap`, no con líneas de texto crudo.
+
+### Modularidad
+
+El mapa y la posición están en `domain/common`, mientras que el conteo simple y la
+retirada progresiva están separados en `domain/part1` y `domain/part2`.
+
+### Código Expresivo
+
+Métodos como `countAdjacentPaperRolls`, `adjacentPositions` e `isPaperRollAt`
+describen la regla de negocio sin necesidad de interpretar índices de matriz en cada
+uso.
+
+### Abstracción
+
+`PaperRollMap` oculta cómo se almacenan las filas y cómo se validan los límites. Los
+contadores solo preguntan por posiciones, vecinos y rollos existentes.
+
 ## Principios aplicados
 
 ### Principio de Responsabilidad Única (SRP)

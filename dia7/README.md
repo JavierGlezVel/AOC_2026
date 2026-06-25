@@ -324,6 +324,35 @@ classDiagram
     TimelineCounterPart2 --> TachyonManifold
 ```
 
+## Fundamentos de diseño aplicados
+
+### Alta Cohesión
+
+`TachyonManifold` concentra la validación y consulta del diagrama. `BeamSplitCounterPart1`
+cuenta divisiones y `TimelineCounterPart2` cuenta líneas temporales. Cada clase
+responde a una pregunta concreta del enunciado.
+
+### Bajo Acoplamiento
+
+`LaboratorySolver` depende de `DiagramSource`. Los contadores reciben un
+`TachyonManifold` ya parseado, no una fuente ni líneas de texto.
+
+### Modularidad
+
+La cuadrícula y las posiciones están en `domain/common`; las dos simulaciones se
+separan por parte; el parser y la lectura de fichero quedan fuera del dominio.
+
+### Código Expresivo
+
+`activeColumns`, `activeTimelines`, `completedTimelines` y `isSplitterAt` describen
+el estado de la simulación con términos cercanos al problema.
+
+### Abstracción
+
+`TachyonManifold` oculta la representación textual del mapa. Los contadores solo
+necesitan preguntar por el inicio, los límites de columnas y si hay un divisor en una
+posición.
+
 ## Principios aplicados
 
 ### Principio de Responsabilidad Única (SRP)

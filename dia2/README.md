@@ -361,6 +361,40 @@ classDiagram
     InvalidProductIdSumCalculator --> ProductIdRange
 ```
 
+## Fundamentos de diseño aplicados
+
+### Alta Cohesión
+
+Las clases están agrupadas por tarea: `ProductIdRange` representa rangos,
+los generadores producen candidatos inválidos, `InvalidProductIdSumCalculator`
+suma IDs contenidos en rangos y `GiftShopSolver` coordina. Ninguna clase mezcla la
+generación de patrones con la lectura de entrada.
+
+### Bajo Acoplamiento
+
+El solver depende de `RangeSource` y trabaja con listas de `ProductIdRange`. Los
+generadores no conocen el fichero ni el parser; solo reciben el límite máximo hasta
+el que generar candidatos.
+
+### Modularidad
+
+La parte común del dominio contiene los rangos y el sumador. Las reglas específicas
+de patrones repetidos están en `domain/part1` y `domain/part2`, lo que permite ver
+qué cambia entre las dos partes sin recorrer todo el proyecto.
+
+### Código Expresivo
+
+Nombres como `RepeatedTwiceProductIdGenerator` y
+`RepeatedAtLeastTwiceProductIdGenerator` explican la diferencia entre ambas partes.
+El método `contains` en `ProductIdRange` comunica claramente la operación del
+dominio.
+
+### Abstracción
+
+`ProductIdRange` oculta las comparaciones de límites y expone `contains`. La suma de
+IDs inválidos se abstrae en `InvalidProductIdSumCalculator`, de modo que las partes
+solo se preocupan de generar los candidatos correctos.
+
 ## Principios aplicados
 
 ### Principio de Responsabilidad Única (SRP)

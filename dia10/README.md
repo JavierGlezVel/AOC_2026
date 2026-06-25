@@ -350,6 +350,35 @@ classDiagram
     MinimumJoltageButtonPressesCalculatorPart2 --> Fraction
 ```
 
+## Fundamentos de diseño aplicados
+
+### Alta Cohesión
+
+`FactoryMachine` representa una máquina validada, `MinimumButtonPressesCalculatorPart1`
+enumera combinaciones de botones y `MinimumJoltageButtonPressesCalculatorPart2`
+resuelve el sistema de voltajes. El parser solo interpreta el formato textual.
+
+### Bajo Acoplamiento
+
+`FactorySolver` depende de `FactoryMachineSource`. Las calculadoras reciben
+`FactoryMachine` y no conocen cómo se obtiene ni cómo se parsea el manual.
+
+### Modularidad
+
+La representación común de máquinas está separada de los dos algoritmos. La
+eliminación gaussiana queda encapsulada dentro de la parte 2 y no afecta a la parte 1.
+
+### Código Expresivo
+
+Nombres como `targetMask`, `buttonMasks`, `joltageRequirements`,
+`pivotColumns` y `freeColumns` hacen visible la estructura del problema y del sistema
+lineal.
+
+### Abstracción
+
+`FactoryMachine` oculta la validación de máscaras y requisitos. `Fraction` oculta la
+aritmética exacta necesaria para la eliminación gaussiana.
+
 ## Principios aplicados
 
 ### Principio de Responsabilidad Única (SRP)

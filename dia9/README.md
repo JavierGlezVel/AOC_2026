@@ -375,6 +375,36 @@ classDiagram
     LargestContainedRectangleAreaCalculatorPart2 --> RedGreenTileArea
 ```
 
+## Fundamentos de diseño aplicados
+
+### Alta Cohesión
+
+`RedTile` representa puntos y áreas entre esquinas, `RedGreenTileArea` responde a
+consultas de contención, `RowCoverage` modela cobertura horizontal y cada calculadora
+resuelve una parte.
+
+### Bajo Acoplamiento
+
+`MovieTheaterSolver` depende de `RedTileSource`. Las calculadoras trabajan con
+`RedTile` y `RedGreenTileArea`, no con el parser ni con el fichero.
+
+### Modularidad
+
+La geometría compartida se separa en `domain/common`. La búsqueda sin contención y la
+búsqueda con contención viven en clases distintas dentro de `domain/part1` y
+`domain/part2`.
+
+### Código Expresivo
+
+Métodos como `rectangleAreaWith`, `containsRectangle`, `intersectsRows` y
+`containsXInterval` explican la intención geométrica de cada operación.
+
+### Abstracción
+
+`RedGreenTileArea` oculta la construcción de coberturas por filas. La calculadora de
+la parte 2 solo pregunta si un rectángulo está contenido, sin conocer los detalles
+del barrido geométrico.
+
 ## Principios aplicados
 
 ### Principio de Responsabilidad Única (SRP)

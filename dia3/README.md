@@ -334,6 +334,38 @@ classDiagram
     TotalOutputJoltageCalculatorPart2 --> TotalOutputJoltageCalculator
 ```
 
+## Fundamentos de diseño aplicados
+
+### Alta Cohesión
+
+`MaximumJoltageCalculator` se centra en elegir los mejores dígitos de un banco,
+`TotalOutputJoltageCalculator` solo suma resultados y las clases de parte 1 y parte
+2 solo configuran cuántas baterías se encienden. Cada clase tiene una tarea
+relacionada con su nombre.
+
+### Bajo Acoplamiento
+
+El totalizador depende de `JoltageCalculator`, no de una implementación concreta.
+`LobbySolver` depende de `BatteryBankSource`, por lo que no queda acoplado a
+`FileBatteryBankSource`.
+
+### Modularidad
+
+La regla común de cálculo está en `domain/common`, mientras que cada parte queda en
+su paquete específico. La aplicación y la infraestructura quedan fuera del dominio.
+
+### Código Expresivo
+
+`BatteryBank`, `MaximumJoltageCalculator` y `TotalOutputJoltageCalculator` describen
+la intención del código. El método `calculate` se usa de forma consistente para los
+servicios de dominio.
+
+### Abstracción
+
+`JoltageCalculator` abstrae la forma concreta de calcular el joltage de un banco.
+Gracias a eso, el totalizador puede sumar resultados sin saber si se seleccionan 2,
+12 u otra cantidad de baterías.
+
 ## Principios aplicados
 
 ### Principio de Responsabilidad Única (SRP)

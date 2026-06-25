@@ -374,6 +374,36 @@ classDiagram
     WorksheetGrandTotalCalculatorPart2 --> MathProblem
 ```
 
+## Fundamentos de diseño aplicados
+
+### Alta Cohesión
+
+`MathWorksheetParser` se encarga del parseo de la hoja, `MathProblem` representa un
+ejercicio y `MathOperation` contiene las operaciones matemáticas. Las calculadoras
+solo suman resultados ya parseados.
+
+### Bajo Acoplamiento
+
+`TrashCompactorSolver` depende de `WorksheetSource`. Las operaciones matemáticas no
+dependen del parser, y el parser no depende de la forma en la que se mostrará la
+respuesta.
+
+### Modularidad
+
+El parseo vive en `application`, los conceptos matemáticos en `domain/common`, las
+reglas de cada parte en sus paquetes y la lectura del fichero en `infrastructure`.
+
+### Código Expresivo
+
+Métodos como `parseRightToLeft`, `findProblemRanges` e `isBlankColumn` explican el
+proceso de lectura de la hoja. `MathOperation.ADD` y `MathOperation.MULTIPLY`
+expresan las dos operaciones válidas.
+
+### Abstracción
+
+`MathOperation.apply` oculta cómo se calcula una suma o una multiplicación. Las
+calculadoras solo aplican la operación asociada a cada `MathProblem`.
+
 ## Principios aplicados
 
 ### Principio de Responsabilidad Única (SRP)

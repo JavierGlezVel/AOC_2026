@@ -286,6 +286,42 @@ classDiagram
     PasswordCalculatorPart2 --> Rotation
 ```
 
+## Fundamentos de diseño aplicados
+
+### Alta Cohesión
+
+Cada clase se centra en una tarea concreta del problema. `Dial` solo gestiona la
+posición circular, `Rotation` solo representa una instrucción válida,
+`RotationParser` solo convierte texto en rotaciones y cada calculador resuelve una
+parte. Las responsabilidades relacionadas están juntas y no se mezclan con lectura
+de ficheros o salida por consola.
+
+### Bajo Acoplamiento
+
+`SafeSolver` depende de `RotationSource`, no de `FileRotationSource`. Así, la lógica
+que resuelve el día no queda atada a que la entrada venga de un fichero concreto.
+También los calculadores dependen de `Rotation` y `Dial`, no del parser ni de la
+infraestructura.
+
+### Modularidad
+
+El código está dividido en módulos por responsabilidad: `domain/common` contiene las
+piezas compartidas, `domain/part1` y `domain/part2` separan las reglas de cada parte,
+`application` coordina el caso de uso e `infrastructure` lee la entrada.
+
+### Código Expresivo
+
+Los nombres reflejan directamente el vocabulario del enunciado: `Dial`,
+`Rotation`, `PasswordCalculatorPart1` y `PasswordCalculatorPart2`. Esto permite leer
+la solución entendiendo qué papel cumple cada clase sin depender de comentarios
+extensos.
+
+### Abstracción
+
+El giro circular se oculta detrás de `Dial.rotate`, y la entrada se oculta detrás de
+`RotationSource`. Quien calcula la contraseña no necesita conocer la fórmula modular
+ni cómo se leen las líneas del fichero.
+
 ## Principios aplicados
 
 ### Principio de Responsabilidad Única (SRP)

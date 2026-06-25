@@ -336,6 +336,37 @@ classDiagram
     FittingRegionCounterPart1 --> TreeFarmPlan
 ```
 
+## Fundamentos de diseño aplicados
+
+### Alta Cohesión
+
+`PresentShape` se centra en formas y variantes, `TreeRegion` en regiones,
+`TreeFarmPlan` en agrupar el problema y `FittingRegionCounterPart1` en comprobar si
+las piezas caben.
+
+### Bajo Acoplamiento
+
+`TreeFarmSolver` depende de `TreeFarmSource`. El backtracking recibe un
+`TreeFarmPlan` ya construido y no depende del parser ni de la lectura del fichero.
+
+### Modularidad
+
+Las piezas reutilizables (`Cell`, `PresentShape`, `TreeRegion`, `TreeFarmPlan`) están
+en `domain/common`. La regla disponible está aislada en `domain/part1`, dejando un
+sitio claro para una futura parte 2.
+
+### Código Expresivo
+
+`variants`, `normalize`, `placementsFor`, `occupiedCells` y `memoizedFailures`
+explican las fases del algoritmo de encaje sin esconder la intención detrás de
+nombres genéricos.
+
+### Abstracción
+
+Las formas se manejan como `PresentShape` y sus variantes, no como listas sueltas de
+coordenadas en todo el código. Las colocaciones se abstraen como máscaras para que el
+backtracking compruebe solapes con una operación simple.
+
 ## Principios aplicados
 
 ### Principio de Responsabilidad Única (SRP)

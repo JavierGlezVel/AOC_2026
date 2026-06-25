@@ -338,6 +338,34 @@ classDiagram
     FinalConnectionXProductCalculatorPart2 --> CircuitNetwork
 ```
 
+## Fundamentos de diseño aplicados
+
+### Alta Cohesión
+
+`JunctionBox` representa coordenadas y distancias, `ConnectionCandidateGenerator`
+genera conexiones posibles, `CircuitNetwork` gestiona componentes conectadas y cada
+calculadora aplica una regla de resultado.
+
+### Bajo Acoplamiento
+
+`PlaygroundSolver` depende de `JunctionBoxSource`. Las calculadoras no conocen el
+parser ni la fuente de entrada; trabajan con `List<JunctionBox>`.
+
+### Modularidad
+
+El dominio común contiene las cajas, candidatos y red de circuitos. La parte 1 y la
+parte 2 reutilizan esas piezas desde calculadoras separadas.
+
+### Código Expresivo
+
+`distanceSquaredTo`, `generateSorted`, `connect`, `isSingleCircuit` y
+`largestCircuitSizes` comunican claramente las operaciones principales del algoritmo.
+
+### Abstracción
+
+`CircuitNetwork` oculta los arrays internos de unión-búsqueda (`parents`, `sizes`).
+Las partes solo llaman a `connect`, `isSingleCircuit` y `largestCircuitSizes`.
+
 ## Principios aplicados
 
 ### Principio de Responsabilidad Única (SRP)

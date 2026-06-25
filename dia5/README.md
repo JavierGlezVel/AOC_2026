@@ -330,6 +330,36 @@ classDiagram
     FreshIngredientIdCoverageCounterPart2 --> FreshIngredientIdRange
 ```
 
+## Fundamentos de diseño aplicados
+
+### Alta Cohesión
+
+`FreshIngredientIdRange` reúne las operaciones propias de un intervalo, como
+`contains`, `merge` y `size`. La parte 1 se centra en contar IDs disponibles y la
+parte 2 en calcular cobertura total de rangos.
+
+### Bajo Acoplamiento
+
+`CafeteriaSolver` depende de `DatabaseSource`, y los contadores dependen de
+`InventoryDatabase`. Ninguna regla de dominio conoce cómo se lee el fichero.
+
+### Modularidad
+
+El modelo de inventario se comparte en `domain/common`. Las dos interpretaciones del
+enunciado se mantienen en clases separadas, una para cada parte.
+
+### Código Expresivo
+
+Nombres como `FreshIngredientCounterPart1` y
+`FreshIngredientIdCoverageCounterPart2` dejan claro si se cuentan IDs disponibles o
+cobertura total de rangos. `overlapsOrTouches` expresa directamente la regla de
+fusión.
+
+### Abstracción
+
+La clase `FreshIngredientIdRange` oculta las comparaciones de límites. La parte 2 no
+manipula pares de números sueltos, sino rangos con operaciones propias del dominio.
+
 ## Principios aplicados
 
 ### Principio de Responsabilidad Única (SRP)

@@ -303,6 +303,34 @@ classDiagram
     ReactorRequiredDevicePathCounterPart2 --> PathState
 ```
 
+## Fundamentos de diseño aplicados
+
+### Alta Cohesión
+
+`DeviceNetwork` representa la red dirigida, `ReactorPathCounterPart1` cuenta caminos
+desde `you` hasta `out` y `ReactorRequiredDevicePathCounterPart2` añade el estado de
+dispositivos obligatorios. Cada contador mantiene una regla clara.
+
+### Bajo Acoplamiento
+
+`ReactorSolver` depende de `DeviceNetworkSource`. Los contadores trabajan con
+`DeviceNetwork`, no con líneas de texto ni con detalles del fichero.
+
+### Modularidad
+
+La red está en `domain/common`, mientras que cada regla de conteo está en su paquete
+de parte correspondiente. La lectura y el parseo quedan fuera de los contadores.
+
+### Código Expresivo
+
+`outputsFrom`, `countPaths`, `PathState`, `visitedDac` y `visitedFft` describen la
+estructura de la búsqueda y el estado requerido por la parte 2.
+
+### Abstracción
+
+`DeviceNetwork` oculta el mapa interno de salidas. Los contadores solo piden las
+salidas de un dispositivo mediante `outputsFrom`.
+
 ## Principios aplicados
 
 ### Principio de Responsabilidad Única (SRP)
