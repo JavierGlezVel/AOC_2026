@@ -277,6 +277,8 @@ classDiagram
     FileDiagramSource ..|> DiagramSource
     PrintingDepartmentSolver --> DiagramSource
     PrintingDepartmentSolver --> PaperRollMapParser
+    PrintingDepartmentSolver --> AccessiblePaperRollCounterPart1
+    PrintingDepartmentSolver --> RemovablePaperRollCounterPart2
     PaperRollMapParser --> PaperRollMap
     PaperRollMap --> GridPosition
     AccessiblePaperRollCounterPart1 --> PaperRollMap
