@@ -327,6 +327,8 @@ classDiagram
     FileBatteryBankSource ..|> BatteryBankSource
     LobbySolver --> BatteryBankSource
     LobbySolver --> BatteryBankParser
+    LobbySolver --> TotalOutputJoltageCalculatorPart1
+    LobbySolver --> TotalOutputJoltageCalculatorPart2
     BatteryBankParser --> BatteryBank
     MaximumJoltageCalculator ..|> JoltageCalculator
     TotalOutputJoltageCalculator --> JoltageCalculator
