@@ -14,6 +14,9 @@ la columna izquierda y otro hacia la derecha.
 En la parte 1 los haces que llegan al mismo sitio se juntan. En la parte 2 se cuentan
 como líneas temporales distintas.
 
+Así, la primera parte cuenta posiciones de haces de forma más simple, mientras que la
+segunda tiene que conservar cuántos caminos distintos llegan a cada columna.
+
 La entrada está en:
 
 ```text
@@ -23,6 +26,8 @@ src/main/resources/input.txt
 ## Parte 1
 
 Hay que contar cuántas veces se divide un haz al pasar por divisores.
+
+Cada vez que un haz activo encuentra un `^`, se suma una división.
 
 Con el ejemplo oficial:
 
@@ -62,6 +67,9 @@ Con el input del proyecto, la respuesta de la parte 1 es:
 Hay que contar cuántas líneas temporales resultan después de seguir todos los caminos
 posibles.
 
+Aquí dos caminos que llegan al mismo sitio no se fusionan del todo: se acumula cuántas
+líneas temporales representa esa posición.
+
 Con el mismo ejemplo oficial, el resultado es:
 
 ```text
@@ -80,6 +88,9 @@ Con el input del proyecto, la respuesta de la parte 2 es:
 
 `BeamSplitCounterPart1` simula el avance del haz fila a fila. En cada fila mantiene
 un conjunto de columnas activas:
+
+Ese conjunto indica en qué columnas hay un haz en la fila actual. Si dos haces llegan
+a la misma columna, el conjunto evita contarlos dos veces en la parte 1.
 
 ```java
 Set<Integer> activeColumns = Set.of(start.column());

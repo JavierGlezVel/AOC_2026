@@ -15,6 +15,9 @@ opuestas de un rectángulo.
 En la parte 2, las baldosas rojas delimitan una zona. El rectángulo elegido debe
 quedar dentro de esa zona.
 
+La idea general es probar rectángulos posibles y quedarse con el mayor que cumpla las
+condiciones de la parte correspondiente.
+
 La entrada está en:
 
 ```text
@@ -25,6 +28,9 @@ src/main/resources/input.txt
 
 Hay que encontrar el rectángulo de mayor área usando dos baldosas rojas como esquinas.
 El área cuenta las baldosas incluidas:
+
+Como se cuentan baldosas, si dos esquinas están separadas por 4 posiciones, la
+anchura real del rectángulo incluye también la casilla inicial.
 
 ```text
 área = (|x1 - x2| + 1) * (|y1 - y2| + 1)
@@ -60,6 +66,9 @@ Con el input del proyecto, la respuesta de la parte 1 es:
 La idea es la misma, pero ahora el rectángulo completo debe estar dentro del área
 válida marcada por las baldosas.
 
+Esto hace que no baste con que las esquinas sean rojas: también hay que comprobar el
+interior del rectángulo.
+
 Con el mismo ejemplo oficial, el resultado es:
 
 ```text
@@ -78,6 +87,9 @@ Con el input del proyecto, la respuesta de la parte 2 es:
 
 `LargestRectangleAreaCalculatorPart1` recorre todas las parejas posibles de baldosas
 rojas. Para cada pareja delega el cálculo del área en `RedTile`:
+
+Es una búsqueda directa: si hay varias baldosas rojas, se prueba cada pareja una vez
+y se guarda el área más grande encontrada.
 
 ```java
 long area = redTiles.get(first).rectangleAreaWith(redTiles.get(second));

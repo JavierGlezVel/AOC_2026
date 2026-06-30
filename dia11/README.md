@@ -12,6 +12,9 @@ bbb: ddd eee
 Cada línea indica un dispositivo y a qué otros dispositivos puede enviar la señal.
 El objetivo es contar caminos dentro de esa red.
 
+Se puede imaginar como un grafo: los dispositivos son nodos y las conexiones son
+flechas hacia otros nodos.
+
 La entrada está en:
 
 ```text
@@ -21,6 +24,9 @@ src/main/resources/input.txt
 ## Parte 1
 
 Hay que contar cuántos caminos distintos van desde `you` hasta `out`.
+
+Cada camino válido empieza en `you`, sigue las conexiones disponibles y termina en
+`out`.
 
 Con el ejemplo oficial:
 
@@ -54,6 +60,9 @@ Con el input del proyecto, la respuesta de la parte 1 es:
 Ahora se cuentan caminos desde `svr` hasta `out`, pero solo valen si pasan por `dac`
 y por `fft`, en cualquier orden.
 
+Por eso no basta con saber en qué dispositivo estamos: también hay que recordar si ya
+se han visitado esos dos dispositivos obligatorios.
+
 Con el ejemplo oficial de la parte 2, el resultado es:
 
 ```text
@@ -70,6 +79,9 @@ Con el input del proyecto, la respuesta de la parte 2 es:
 
 `DeviceNetworkParser` transforma cada línea en una entrada del grafo dirigido. El
 dominio guarda un mapa desde cada dispositivo hasta sus salidas.
+
+Después del parseo, resolver el problema consiste en recorrer ese grafo y sumar los
+caminos que llegan al nodo final.
 
 `ReactorPathCounterPart1` cuenta caminos con una búsqueda en profundidad desde
 `you`. Para evitar recalcular subgrafos compartidos, memoiza el número de caminos

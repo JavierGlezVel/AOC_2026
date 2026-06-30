@@ -13,6 +13,10 @@ Cada línea tiene una dirección y un número de clicks:
 Como el dial es circular, después del `99` vuelve al `0`, y antes del `0` está el
 `99`.
 
+Dicho de forma sencilla, el input es una lista de movimientos. La solución solo tiene
+que ir aplicándolos en orden y fijarse en cuántas veces aparece la posición `0`,
+según la regla de cada parte.
+
 La entrada está en:
 
 ```text
@@ -24,12 +28,19 @@ src/main/resources/input.txt
 Hay que seguir todas las rotaciones y contar cuántas veces el dial termina en `0`
 justo al acabar una rotación.
 
+Aquí no importan los valores por los que pasa el dial mientras gira. Solo se mira la
+posición final después de cada línea del input.
+
 Con el ejemplo del enunciado, la parte 1 devuelve `3`.
 
 ## Parte 2
 
 Ahora no basta con mirar dónde acaba cada rotación. Hay que contar todas las veces
 que el dial pasa por `0`, aunque sea en mitad de una rotación.
+
+La diferencia importante es que una sola rotación puede sumar más de una vez si da
+varias vueltas completas. Por eso esta parte calcula los cruces por `0` sin simular
+click a click.
 
 Por ejemplo, una rotación larga puede dar varias vueltas completas y pasar varias
 veces por `0`. Con el ejemplo del enunciado, la parte 2 devuelve `6`.

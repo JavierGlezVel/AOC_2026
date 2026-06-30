@@ -12,6 +12,10 @@ ocupa un bloque de columnas:
 La separación por columnas vacías permite saber dónde empieza y termina cada
 ejercicio.
 
+Aunque visualmente la hoja parece rara, el programa la trata como una cuadrícula de
+caracteres. Primero detecta los bloques de columnas y luego interpreta cada bloque
+como un ejercicio.
+
 La entrada debe estar en:
 
 ```text
@@ -21,6 +25,9 @@ src/main/resources/input.txt
 ## Parte 1
 
 Hay que resolver cada ejercicio y sumar todos los resultados.
+
+En esta parte los números se leen de arriba hacia abajo dentro de cada bloque, tal y
+como aparecen escritos en la hoja.
 
 Con el ejemplo oficial:
 
@@ -57,6 +64,9 @@ Con el input del proyecto, la respuesta de la parte 1 es:
 Ahora los números se leen de otra forma: por columnas y de derecha a izquierda dentro
 de cada ejercicio. Después se resuelve cada ejercicio igual que antes.
 
+La operación sigue siendo `+` o `*`, pero cambian los números que se forman a partir
+de la hoja.
+
 Con el mismo ejemplo oficial, los ejercicios pasan a ser:
 
 ```text
@@ -83,6 +93,9 @@ Con el input del proyecto, la respuesta de la parte 2 es:
 `MathWorksheetParser` normaliza todas las líneas a la misma anchura y recorre la hoja
 por columnas. Cuando encuentra una columna completamente vacía, la usa como
 separador entre ejercicios. Para cada bloque de columnas no vacío:
+
+Normalizar significa rellenar con espacios las líneas más cortas para poder leer
+cualquier columna sin salirse. Así todas las filas tienen la misma longitud.
 
 - lee los números de las filas superiores;
 - lee la operación de la última fila;

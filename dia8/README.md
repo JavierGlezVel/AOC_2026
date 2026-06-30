@@ -13,6 +13,9 @@ La entrada contiene cajas de conexión en un espacio 3D. Cada línea tiene coord
 Las cajas se conectan por parejas, empezando por las parejas más cercanas. Cuando se
 conectan dos cajas de circuitos distintos, esos circuitos se unen.
 
+El problema consiste en simular ese proceso de conexión y observar cómo van creciendo
+los circuitos.
+
 La entrada está en:
 
 ```text
@@ -23,6 +26,9 @@ src/main/resources/input.txt
 
 Hay que procesar las 1000 conexiones más cortas y multiplicar los tamaños de los
 tres circuitos más grandes que queden.
+
+No se pide saber qué cajas concretas forman cada circuito, solo el tamaño de los tres
+grupos más grandes al terminar esas conexiones.
 
 Con el ejemplo oficial, tras procesar las 10 conexiones más cortas, los tres mayores
 circuitos tienen tamaños `5`, `4` y `2`. El resultado es:
@@ -43,6 +49,9 @@ Ahora se siguen conectando cajas hasta que todas formen un único circuito. La
 respuesta es el producto de las coordenadas `X` de las dos cajas de la conexión que
 lo consigue.
 
+La conexión importante es la última que realmente une dos circuitos separados y deja
+toda la red conectada.
+
 Con el ejemplo oficial, la conexión final es entre `216,146,977` y `117,168,530`, y
 el resultado es:
 
@@ -60,6 +69,9 @@ Con el input del proyecto, la respuesta de la parte 2 es:
 
 `ConnectionCandidateGenerator` genera todas las parejas posibles de cajas y calcula
 su distancia al cuadrado:
+
+Se generan todas las parejas porque cualquier caja podría acabar conectándose con
+cualquier otra si está entre las más cercanas.
 
 ```java
 long distanceSquared = junctionBoxes.get(first).distanceSquaredTo(junctionBoxes.get(second));

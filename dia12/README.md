@@ -11,6 +11,9 @@ La entrada describe regalos y regiones donde colocarlos:
 Los regalos se pueden girar o reflejar. Deben colocarse sin solaparse dentro de cada
 región.
 
+Cada región indica cuántas piezas de cada forma necesita. La pregunta es si todas
+esas piezas caben en el rectángulo disponible.
+
 La entrada está en:
 
 ```text
@@ -20,6 +23,9 @@ src/main/resources/input.txt
 ## Parte 1
 
 Hay que contar cuántas regiones pueden contener todos los regalos que piden.
+
+Una región cuenta como válida si tiene espacio suficiente y las piezas pueden
+colocarse sin ocupar la misma celda.
 
 Con el ejemplo oficial:
 
@@ -46,6 +52,9 @@ Con el input del proyecto, la respuesta de la parte 1 es:
 `TreeFarmParser` separa la entrada en dos partes: primero parsea las formas de los
 regalos y después las regiones. Cada forma se convierte en una lista de celdas
 ocupadas.
+
+Así, una figura deja de ser texto con `#` y `.` y pasa a ser una lista de posiciones
+que realmente ocupan espacio.
 
 `FittingRegionCounterPart1` aplica dos niveles de decisión:
 

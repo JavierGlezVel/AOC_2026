@@ -5,6 +5,9 @@
 La entrada contiene varios rangos de IDs de producto. Algunos IDs son inválidos
 porque están formados por dígitos repetidos.
 
+La idea del problema es revisar esos rangos y quedarse solo con los IDs que tienen un
+patrón repetido claro. Después se suman esos IDs inválidos.
+
 La entrada es una única línea con rangos separados por comas:
 
 ```text
@@ -17,6 +20,9 @@ Cada rango incluye sus dos extremos. Por ejemplo, `11-22` incluye desde `11` has
 ## Parte 1
 
 Un ID es inválido si está formado por un bloque repetido exactamente dos veces.
+
+Es decir, se parte el número en dos mitades iguales y ambas mitades tienen que ser la
+misma.
 
 Ejemplos:
 
@@ -41,6 +47,9 @@ Con el input del proyecto, la respuesta de la parte 1 es:
 ## Parte 2
 
 La regla se amplía: ahora el bloque puede repetirse dos o más veces.
+
+Por tanto, ya no solo valen números con dos mitades iguales. También valen números
+formados por el mismo bloque repetido tres, cuatro o más veces.
 
 Ejemplos:
 
@@ -71,6 +80,10 @@ los rangos contienen millones o miles de millones de IDs.
 
 La solución implementada hace lo contrario: genera solo los IDs que pueden ser
 inválidos y después comprueba si están dentro de alguno de los rangos.
+
+Así se evita revisar números que nunca podrían ser respuesta. Por ejemplo, para la
+parte 1 se generan directamente valores como `11`, `22`, `123123` o `6464`, y luego
+solo se comprueba si caen dentro de los rangos del input.
 
 ### Generación de candidatos para la parte 1
 

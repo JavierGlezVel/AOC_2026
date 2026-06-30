@@ -11,6 +11,10 @@ La entrada es una base de datos de ingredientes con dos partes:
 Un ID es fresco si aparece dentro de alguno de los rangos. Los rangos incluyen sus
 dos extremos, por ejemplo `3-5` incluye `3`, `4` y `5`.
 
+La entrada separa claramente qué IDs se consideran frescos y qué IDs están
+disponibles. La primera parte cruza esas dos listas; la segunda trabaja solo con los
+rangos.
+
 La entrada está en:
 
 ```text
@@ -20,6 +24,9 @@ src/main/resources/input.txt
 ## Parte 1
 
 Hay que contar cuántos IDs de la lista de disponibles son frescos.
+
+Es decir, se revisa cada ID disponible y se comprueba si cae dentro de algún rango de
+ingredientes frescos.
 
 Con el ejemplo oficial:
 
@@ -54,6 +61,9 @@ Con el input del proyecto, la respuesta de la parte 1 es:
 Ahora no se usa la lista de disponibles. Hay que contar cuántos IDs distintos están
 cubiertos por los rangos frescos.
 
+Como los rangos pueden solaparse, no basta con sumar el tamaño de cada rango por
+separado. Primero hay que unir los rangos que se pisan.
+
 Con el ejemplo oficial, los rangos:
 
 ```text
@@ -81,6 +91,9 @@ Con el input del proyecto, la respuesta de la parte 2 es:
 `InventoryDatabaseParser` separa la entrada en dos secciones usando la línea en
 blanco. Antes de esa línea parsea rangos; después de esa línea parsea IDs
 disponibles.
+
+De esta forma, el resto del programa no trabaja con texto crudo, sino con un objeto
+`InventoryDatabase` que ya contiene los rangos y los IDs preparados.
 
 `FreshIngredientCounterPart1` recorre los IDs disponibles y comprueba si cada uno
 pertenece a algún rango fresco:

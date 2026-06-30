@@ -10,6 +10,9 @@ La entrada es un mapa rectangular del departamento de impresión:
 Un rollo es accesible si tiene como mucho tres rollos alrededor. Alrededor significa
 las ocho posiciones vecinas: arriba, abajo, lados y diagonales.
 
+Por tanto, el mapa se puede entender como una cuadrícula. En cada casilla con `@` se
+mira su alrededor y se decide si ese rollo se puede alcanzar o no.
+
 La entrada está en:
 
 ```text
@@ -19,6 +22,9 @@ src/main/resources/input.txt
 ## Parte 1
 
 Hay que contar cuántos rollos son accesibles en el mapa inicial.
+
+En esta parte el mapa no cambia. Solo se revisa una vez y se cuentan los rollos que
+cumplen la condición.
 
 Con el ejemplo oficial:
 
@@ -49,6 +55,9 @@ Ahora los rollos accesibles se retiran. Al quitar uno, otros rollos pueden queda
 con menos vecinos y volverse accesibles también. El proceso continúa hasta que ya no
 se pueda retirar ninguno más.
 
+Aquí el mapa sí va cambiando. Cada retirada puede hacer que aparezcan nuevos rollos
+accesibles, así que hay que repetir el proceso hasta que se estabilice.
+
 Con el ejemplo oficial, se pueden retirar `43` rollos en total.
 
 Con el input del proyecto, la respuesta de la parte 2 es:
@@ -61,6 +70,9 @@ Con el input del proyecto, la respuesta de la parte 2 es:
 
 Para la parte 1, la solución recorre todas las posiciones del mapa. Cuando encuentra
 un rollo (`@`), cuenta cuántos rollos hay alrededor en las ocho posiciones vecinas.
+
+Es una comprobación local: para decidir si un rollo cuenta, no hace falta mirar todo
+el mapa, solo sus vecinos inmediatos.
 
 Un rollo es accesible si cumple:
 
@@ -81,6 +93,9 @@ Para la parte 2, `RemovablePaperRollCounterPart2` mantiene:
 Cuando se retira un rollo, solo pueden cambiar sus vecinos. Por eso no hace falta
 recalcular todo el mapa en cada ronda: se decrementa el contador de vecinos de los
 rollos adyacentes y, si alguno pasa a ser accesible, se añade a la cola.
+
+La cola sirve para guardar los rollos que están pendientes de retirar. Así la
+solución avanza solo por las posiciones que han cambiado o que pueden cambiar.
 
 Esta solución aprovecha que el proceso es monotónico: retirar rollos nunca aumenta
 el número de vecinos de otro rollo.

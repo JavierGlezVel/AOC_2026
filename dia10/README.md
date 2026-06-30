@@ -16,6 +16,9 @@ Un ejemplo de línea es:
 
 El objetivo es calcular cuántas pulsaciones hacen falta como mínimo.
 
+Cada parte interpreta la máquina de una forma distinta, pero en ambos casos se busca
+minimizar el número total de veces que se pulsan botones.
+
 La entrada está en:
 
 ```text
@@ -26,6 +29,9 @@ src/main/resources/input.txt
 
 Las luces empiezan apagadas. Cada botón cambia algunas luces de apagadas a encendidas
 o al revés. Hay que llegar al patrón objetivo con el menor número de pulsaciones.
+
+Como pulsar dos veces el mismo botón cancela su efecto, en esta parte cada botón solo
+interesa como usado o no usado.
 
 Con el ejemplo oficial:
 
@@ -53,6 +59,9 @@ Ahora se ignoran las luces y se usan los requisitos de joltage. Cada botón suma
 a ciertos contadores, y puede pulsarse varias veces. Hay que alcanzar los valores
 pedidos con el menor total de pulsaciones.
 
+Esta parte ya no es de encender y apagar, sino de repartir incrementos entre varios
+contadores hasta llegar exactamente a los valores pedidos.
+
 Con el ejemplo oficial, el resultado es:
 
 ```text
@@ -69,6 +78,9 @@ Con el input del proyecto, la respuesta de la parte 2 es:
 
 `FactoryMachineParser` convierte el diagrama objetivo y cada botón en máscaras de
 bits. También conserva los requisitos de joltage como una lista de enteros.
+
+Las máscaras permiten representar muchas luces con un solo número. Así es rápido
+combinar botones y comparar si se ha llegado al objetivo.
 
 `MinimumButtonPressesCalculatorPart1` prueba todos los subconjuntos de botones de
 cada máquina. Para cada subconjunto aplica XOR con las máscaras de los botones:

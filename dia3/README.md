@@ -8,6 +8,9 @@ representa el joltage de una batería.
 En cada banco hay que escoger algunas baterías. El número final se forma con los
 dígitos escogidos, manteniendo el orden original.
 
+La clave es que no se pueden mover las baterías de sitio. Se eligen algunas, pero el
+número resultante conserva el orden en el que aparecen en la línea.
+
 Por ejemplo, en el banco `12345`, si se encienden las baterías `2` y `4`, el banco
 produce `24` jolts.
 
@@ -21,6 +24,9 @@ src/main/resources/input.txt
 
 Hay que escoger dos baterías por banco para formar el mayor número posible. Después
 se suman los mejores valores de todos los bancos.
+
+En esta parte cada banco produce un número de dos cifras. La solución busca la mejor
+primera cifra posible y luego la mejor segunda cifra que pueda aparecer después.
 
 Con el ejemplo oficial:
 
@@ -55,6 +61,9 @@ Con el input del proyecto, la respuesta de la parte 1 es:
 Ahora hay que escoger doce baterías por banco. La idea es la misma que en la parte 1,
 pero el número final tiene doce dígitos.
 
+Aunque el número de cifras cambia, el razonamiento sigue siendo el mismo: construir
+el número más grande posible sin romper el orden original.
+
 Con el mismo ejemplo oficial, los mayores joltages son:
 
 - `987654321111`, a partir de `987654321111111`.
@@ -81,6 +90,10 @@ parte 2 generaliza el problema: ahora hay que escoger una subsecuencia de 12 dí
 que forme el mayor número posible.
 
 Por eso `MaximumJoltageCalculator` recibe cuántas baterías debe encender:
+
+En vez de tener una solución distinta para cada parte, se usa una misma clase y se le
+indica cuántos dígitos debe escoger. Para la parte 1 se le pide `2`; para la parte 2
+se le pide `12`.
 
 ```java
 new MaximumJoltageCalculator(2)
