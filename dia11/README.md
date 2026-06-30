@@ -88,98 +88,6 @@ búsqueda: dispositivo actual, si ya se ha pasado por `dac` y si ya se ha pasado
 `fft`. Al llegar a `out`, solo cuenta el camino si ambos dispositivos requeridos ya
 han sido visitados.
 
-## Resolución detallada
-
-### Parte 1
-
-El input describe una red dirigida de dispositivos. La parte 1 cuenta cuántos
-caminos distintos van desde `you` hasta `out`. La solución usa búsqueda en
-profundidad con memoización: una vez calculado cuántos caminos salen de un
-dispositivo, ese resultado se reutiliza cuando otro camino llega al mismo nodo.
-
-El caso base es llegar a `out`, que aporta un camino válido:
-
-```java
-if (DeviceNetwork.OUTPUT_DEVICE.equals(device)) {
-    return BigInteger.ONE;
-}
-```
-
-La memoización evita recalcular subgrafos compartidos:
-
-```java
-if (memoizedPaths.containsKey(device)) {
-    return memoizedPaths.get(device);
-}
-```
-
-El total de caminos desde un dispositivo es la suma de los caminos desde todas sus
-salidas:
-
-```java
-BigInteger totalPaths = BigInteger.ZERO;
-for (String output : network.outputsFrom(device)) {
-    totalPaths = totalPaths.add(
-            countFrom(output, network, memoizedPaths, visiting));
-}
-
-memoizedPaths.put(device, totalPaths);
-return totalPaths;
-```
-
-Se mantiene además un conjunto `visiting` para detectar ciclos y fallar de forma
-explícita si el grafo no es acíclico.
-
-### Parte 2
-
-La segunda parte cuenta caminos que salen de `svr`, llegan a `out` y pasan por dos
-dispositivos obligatorios: `dac` y `fft`. Para resolverlo se amplía el estado de la
-búsqueda. Ya no basta con saber el dispositivo actual; también hay que saber si el
-camino ha visitado cada dispositivo requerido.
-
-```java
-private record PathState(String device, boolean visitedDac, boolean visitedFft) {
-    PathState withVisitedDevice() {
-        return new PathState(
-                device,
-                visitedDac || FIRST_REQUIRED_DEVICE.equals(device),
-                visitedFft || SECOND_REQUIRED_DEVICE.equals(device)
-        );
-    }
-
-    boolean hasVisitedBothRequiredDevices() {
-        return visitedDac && visitedFft;
-    }
-}
-```
-
-Al llegar a `out`, el camino solo cuenta si el estado ya ha pasado por ambos
-dispositivos:
-
-```java
-PathState updatedState = state.withVisitedDevice();
-if (DeviceNetwork.OUTPUT_DEVICE.equals(updatedState.device())) {
-    return updatedState.hasVisitedBothRequiredDevices()
-            ? BigInteger.ONE
-            : BigInteger.ZERO;
-}
-```
-
-La recursión y la memoización son iguales que en la parte 1, pero la clave de la
-memoria pasa a ser `PathState`:
-
-```java
-for (String output : network.outputsFrom(updatedState.device())) {
-    totalPaths = totalPaths.add(countFrom(
-            updatedState.moveTo(output),
-            network,
-            memoizedPaths,
-            visiting));
-}
-```
-
-De esta forma se reutiliza el mismo enfoque de conteo de caminos, pero la regla de
-validez se expresa en el estado.
 
 ## Uso de Streams
 
@@ -251,54 +159,54 @@ Contiene los detalles externos al dominio.
 
 ## Clases principales
 
-### `Main` - `dia11/src/main/java/Main.java`
+### `Main` - `Main.java`
 
 1. Calcula la ruta del input del día 11.
 2. Crea `FileDeviceNetworkSource` y `ReactorSolver`.
 3. Ejecuta las dos partes y escribe los resultados por consola.
 
-### `ReactorSolver` - `dia11/src/main/java/application/ReactorSolver.java`
+### `ReactorSolver` - `application/ReactorSolver.java`
 
 1. Lee las líneas mediante `DeviceNetworkSource`.
 2. Convierte el texto en `DeviceNetwork` con `DeviceNetworkParser`.
 3. Delega el conteo de caminos en la clase de dominio de cada parte.
 
-### `DeviceNetworkParser` - `dia11/src/main/java/application/DeviceNetworkParser.java`
+### `DeviceNetworkParser` - `application/DeviceNetworkParser.java`
 
 1. Recorre las conexiones descritas en el input.
 2. Separa cada dispositivo de sus salidas.
 3. Construye el mapa de adyacencias usado por `DeviceNetwork`.
 
-### `DeviceNetwork` - `dia11/src/main/java/domain/common/DeviceNetwork.java`
+### `DeviceNetwork` - `domain/common/DeviceNetwork.java`
 
 1. Representa la red dirigida de dispositivos.
 2. Devuelve las salidas disponibles desde un dispositivo.
 3. Centraliza el nombre del dispositivo final de salida.
 
-### `ReactorPathCounterPart1` - `dia11/src/main/java/domain/part1/ReactorPathCounterPart1.java`
+### `ReactorPathCounterPart1` - `domain/part1/ReactorPathCounterPart1.java`
 
 1. Empieza el recorrido desde el dispositivo inicial.
 2. Explora recursivamente todas las salidas.
 3. Usa memoria de resultados para no recalcular caminos repetidos.
 
-### `ReactorRequiredDevicePathCounterPart2` - `dia11/src/main/java/domain/part2/ReactorRequiredDevicePathCounterPart2.java`
+### `ReactorRequiredDevicePathCounterPart2` - `domain/part2/ReactorRequiredDevicePathCounterPart2.java`
 
 1. Recorre la red manteniendo si ya se han visitado los dispositivos obligatorios.
 2. Cuenta solo los caminos que llegan a salida después de pasar por ambos.
 3. Memoriza estados para evitar repetir subproblemas.
 
-### `PathState` - `dia11/src/main/java/domain/part2/ReactorRequiredDevicePathCounterPart2.java`
+### `PathState` - `domain/part2/ReactorRequiredDevicePathCounterPart2.java`
 
 1. Guarda el dispositivo actual.
 2. Indica si ya se visitaron `dac` y `fft`.
 3. Genera el siguiente estado al avanzar por la red.
 
-### `DeviceNetworkSource` - `dia11/src/main/java/infrastructure/DeviceNetworkSource.java`
+### `DeviceNetworkSource` - `infrastructure/DeviceNetworkSource.java`
 
 1. Define la lectura de líneas de la red.
 2. Permite sustituir el origen de datos sin cambiar el solver.
 
-### `FileDeviceNetworkSource` - `dia11/src/main/java/infrastructure/FileDeviceNetworkSource.java`
+### `FileDeviceNetworkSource` - `infrastructure/FileDeviceNetworkSource.java`
 
 1. Guarda la ruta del fichero de entrada.
 2. Lee todas sus líneas.

@@ -93,98 +93,6 @@ Otro ejemplo más pequeño: desde `50`, una rotación `R250` pasa por `0` tres v
 
 Por eso el test de esa rotación espera `3`.
 
-## Resolución detallada
-
-### Parte 1
-
-La primera parte interpreta cada rotación como una actualización de posición en un
-dial circular de 100 posiciones. El dial empieza en `50`; después de cada rotación
-se comprueba si la posición final es `0`. Solo cuentan los ceros que aparecen al
-terminar una instrucción, no los que se cruzan por el camino.
-
-La operación circular se encapsula en `Dial`, por lo que el cálculo de la contraseña
-no necesita saber cómo se normaliza una posición negativa o una vuelta completa:
-
-```java
-public void rotate(Rotation r) {
-    int steps = r.steps();
-    switch (r.direction()) {
-        case 'L':
-            position = (position - steps % 100 + 100) % 100;
-            break;
-        case 'R':
-            position = (position + steps) % 100;
-            break;
-    }
-}
-```
-
-Con esa abstracción, la parte 1 queda como una lectura secuencial del enunciado:
-rotar, mirar la posición final y sumar si es cero.
-
-```java
-public int calculate(List<Rotation> rotations) {
-    Dial dial = new Dial();
-    int count = 0;
-
-    for (Rotation r : rotations) {
-        dial.rotate(r);
-        if (dial.getPosition() == 0) {
-            count++;
-        }
-    }
-
-    return count;
-}
-```
-
-### Parte 2
-
-La segunda parte cambia la regla de conteo: ahora cuenta cada click que deja el
-dial en `0`, aunque ese cero ocurra durante la rotación. La solución evita simular
-click a click, porque una instrucción como `R1000` tendría muchos pasos. En su
-lugar calcula cuántas veces se cruza el cero mediante aritmética modular.
-
-El método recibe la posición inicial de la instrucción y calcula la distancia hasta
-el primer cero. Si la rotación alcanza ese primer cero, cada 100 pasos adicionales
-vuelve a pasar por `0`:
-
-```java
-private int countZeros(int start, Rotation r) {
-    int steps = r.steps();
-    if (steps <= 0) {
-        return 0;
-    }
-    if (r.direction() == 'L') {
-        if (start == 0) {
-            return steps / 100;
-        }
-        if (steps < start) {
-            return 0;
-        }
-        return 1 + (steps - start) / 100;
-    }
-
-    if (start == 0) {
-        return steps / 100;
-    }
-    int toZero = 100 - start;
-    if (steps < toZero) {
-        return 0;
-    }
-    return 1 + (steps - toZero) / 100;
-}
-```
-
-Después de contar los ceros intermedios de la instrucción, se rota el dial para que
-la siguiente instrucción parta de la posición correcta:
-
-```java
-for (Rotation r : rotations) {
-    count += countZeros(dial.getPosition(), r);
-    dial.rotate(r);
-}
-```
 
 ## Diseño de clases
 
@@ -234,54 +142,54 @@ Contiene los detalles externos al dominio.
 
 ## Clases principales
 
-### `Main` - `dia1/src/main/java/Main.java`
+### `Main` - `Main.java`
 
 1. Calcula la ruta del input por defecto.
 2. Crea `FileRotationSource` y `SafeSolver`.
 3. Ejecuta ambas partes y muestra los resultados por consola.
 
-### `SafeSolver` - `dia1/src/main/java/application/SafeSolver.java`
+### `SafeSolver` - `application/SafeSolver.java`
 
 1. Pide las líneas de entrada a `RotationSource`.
 2. Usa `RotationParser` para convertirlas en `Rotation`.
 3. Llama a `PasswordCalculatorPart1` o `PasswordCalculatorPart2` según la parte.
 
-### `RotationParser` - `dia1/src/main/java/application/RotationParser.java`
+### `RotationParser` - `application/RotationParser.java`
 
 1. Recorre cada línea del input.
 2. Extrae la dirección (`L` o `R`) y el número de pasos.
 3. Construye una lista de objetos `Rotation`.
 
-### `Dial` - `dia1/src/main/java/domain/common/Dial.java`
+### `Dial` - `domain/common/Dial.java`
 
 1. Guarda la posición actual del dial, que empieza en `50`.
 2. Aplica rotaciones hacia izquierda o derecha.
 3. Normaliza la posición para mantenerse entre `0` y `99`.
 
-### `Rotation` - `dia1/src/main/java/domain/common/Rotation.java`
+### `Rotation` - `domain/common/Rotation.java`
 
 1. Representa una instrucción de giro.
 2. Valida que la dirección sea `L` o `R`.
 3. Valida que los pasos no sean negativos.
 
-### `PasswordCalculatorPart1` - `dia1/src/main/java/domain/part1/PasswordCalculatorPart1.java`
+### `PasswordCalculatorPart1` - `domain/part1/PasswordCalculatorPart1.java`
 
 1. Recorre las rotaciones en orden.
 2. Gira el dial una vez por instrucción.
 3. Cuenta cuántas veces la posición final queda en `0`.
 
-### `PasswordCalculatorPart2` - `dia1/src/main/java/domain/part2/PasswordCalculatorPart2.java`
+### `PasswordCalculatorPart2` - `domain/part2/PasswordCalculatorPart2.java`
 
 1. Recorre las rotaciones en orden.
 2. Calcula cuántas veces se cruza el `0` durante cada giro.
 3. Actualiza el dial para que la siguiente instrucción empiece en la posición correcta.
 
-### `RotationSource` - `dia1/src/main/java/infrastructure/RotationSource.java`
+### `RotationSource` - `infrastructure/RotationSource.java`
 
 1. Define la abstracción para obtener líneas de entrada.
 2. Permite que el solver no dependa directamente de ficheros.
 
-### `FileRotationSource` - `dia1/src/main/java/infrastructure/FileRotationSource.java`
+### `FileRotationSource` - `infrastructure/FileRotationSource.java`
 
 1. Guarda la ruta del input.
 2. Lee todas las líneas del fichero.

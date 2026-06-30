@@ -118,106 +118,6 @@ porque un mismo número puede cumplir la regla de más de una forma. Por ejemplo
 `1111` puede verse como `11` repetido dos veces o como `1` repetido cuatro veces,
 pero solo debe sumarse una vez.
 
-## Resolución detallada
-
-### Parte 1
-
-La primera parte busca identificadores formados por un bloque de dígitos repetido
-exactamente dos veces: `55`, `6464`, `123123`, etc. En vez de recorrer todos los
-números de todos los rangos, se generan directamente los candidatos inválidos hasta
-el mayor identificador del input. Así el coste depende del número de patrones
-posibles, no del tamaño total de los intervalos.
-
-El generador toma un prefijo y lo concatena consigo mismo:
-
-```java
-private long repeatTwice(long prefix) {
-    String digits = String.valueOf(prefix);
-    return Long.parseLong(digits + digits);
-}
-```
-
-Se prueban prefijos de longitud creciente. Cuando el primer identificador de una
-longitud ya supera el máximo del input, no puede aparecer ningún candidato mayor
-útil y se termina:
-
-```java
-for (int digits = 1; ; digits++) {
-    long firstPrefix = powerOfTen(digits - 1);
-    long lastPrefix = powerOfTen(digits) - 1;
-    long firstIdWithDigits = repeatTwice(firstPrefix);
-
-    if (firstIdWithDigits > maxId) {
-        return invalidIds;
-    }
-
-    for (long prefix = firstPrefix; prefix <= lastPrefix; prefix++) {
-        long invalidId = repeatTwice(prefix);
-        if (invalidId > maxId) {
-            break;
-        }
-        invalidIds.add(invalidId);
-    }
-}
-```
-
-Después, `InvalidProductIdSumCalculator` filtra esos candidatos contra los rangos
-del input y suma cada ID una sola vez:
-
-```java
-for (ProductIdRange range : ranges) {
-    for (long invalidId : invalidIds) {
-        if (range.contains(invalidId)) {
-            invalidIdsInRanges.add(invalidId);
-        }
-    }
-}
-```
-
-### Parte 2
-
-La segunda parte amplía la regla: el bloque puede repetirse dos o más veces. Por
-eso el generador ya no concatena siempre dos bloques, sino que va acumulando
-repeticiones hasta superar el número máximo de dígitos.
-
-El límite `maxDigits / 2` evita bloques que nunca podrían repetirse al menos dos
-veces dentro del tamaño máximo del input:
-
-```java
-for (int blockLength = 1; blockLength <= maxDigits / 2; blockLength++) {
-    long firstBlock = powerOfTen(blockLength - 1);
-    long lastBlock = powerOfTen(blockLength) - 1;
-    for (long block = firstBlock; block <= lastBlock; block++) {
-        addRepeatedIds(block, maxDigits, maxId, invalidIds);
-    }
-}
-```
-
-Cada bloque se repite incrementalmente. Solo se añaden valores cuando hay al menos
-dos repeticiones, y se usa un `Set` para no duplicar identificadores que puedan
-generarse de más de una forma:
-
-```java
-String blockDigits = String.valueOf(block);
-StringBuilder repeatedDigits = new StringBuilder();
-
-for (int repetitions = 1; repeatedDigits.length() <= maxDigits; repetitions++) {
-    repeatedDigits.append(blockDigits);
-    if (repetitions < 2) {
-        continue;
-    }
-
-    long invalidId = Long.parseLong(repeatedDigits.toString());
-    if (invalidId > maxId) {
-        return;
-    }
-    invalidIds.add(invalidId);
-}
-```
-
-La fase final de filtrado y suma se mantiene igual que en la parte 1. Ese es el
-punto en el que se aplica DRY: cambia la generación de candidatos, pero no la forma
-de comprobar si caen dentro de los rangos.
 
 ## Uso de Streams
 
@@ -303,66 +203,66 @@ Contiene los detalles externos al dominio.
 
 ## Clases principales
 
-### `Main` - `dia2/src/main/java/Main.java`
+### `Main` - `Main.java`
 
 1. Localiza el fichero `input.txt`.
 2. Crea la fuente de rangos y el solver.
 3. Ejecuta parte 1 y parte 2.
 
-### `GiftShopSolver` - `dia2/src/main/java/application/GiftShopSolver.java`
+### `GiftShopSolver` - `application/GiftShopSolver.java`
 
 1. Lee el contenido con `RangeSource`.
 2. Convierte el texto en rangos usando `ProductIdRangeParser`.
 3. Delega cada parte en su calculadora específica.
 
-### `ProductIdRangeParser` - `dia2/src/main/java/application/ProductIdRangeParser.java`
+### `ProductIdRangeParser` - `application/ProductIdRangeParser.java`
 
 1. Divide la línea de entrada por comas.
 2. Separa cada rango por el guion.
 3. Crea objetos `ProductIdRange` validados.
 
-### `ProductIdRange` - `dia2/src/main/java/domain/common/ProductIdRange.java`
+### `ProductIdRange` - `domain/common/ProductIdRange.java`
 
 1. Representa un intervalo cerrado de IDs.
 2. Valida que los límites sean correctos.
 3. Expone `contains` para saber si un ID pertenece al rango.
 
-### `InvalidProductIdSumCalculator` - `dia2/src/main/java/domain/common/InvalidProductIdSumCalculator.java`
+### `InvalidProductIdSumCalculator` - `domain/common/InvalidProductIdSumCalculator.java`
 
 1. Recibe rangos y candidatos inválidos.
 2. Filtra los candidatos que caen dentro de algún rango.
 3. Suma cada ID inválido encontrado una sola vez.
 
-### `RepeatedTwiceProductIdGenerator` - `dia2/src/main/java/domain/part1/RepeatedTwiceProductIdGenerator.java`
+### `RepeatedTwiceProductIdGenerator` - `domain/part1/RepeatedTwiceProductIdGenerator.java`
 
 1. Genera IDs formados por un bloque repetido exactamente dos veces.
 2. Se detiene cuando supera el máximo del input.
 3. Devuelve los candidatos de la parte 1.
 
-### `InvalidProductIdSumCalculatorPart1` - `dia2/src/main/java/domain/part1/InvalidProductIdSumCalculatorPart1.java`
+### `InvalidProductIdSumCalculatorPart1` - `domain/part1/InvalidProductIdSumCalculatorPart1.java`
 
 1. Calcula el mayor ID necesario.
 2. Genera candidatos con `RepeatedTwiceProductIdGenerator`.
 3. Reutiliza el sumador común para obtener la respuesta.
 
-### `RepeatedAtLeastTwiceProductIdGenerator` - `dia2/src/main/java/domain/part2/RepeatedAtLeastTwiceProductIdGenerator.java`
+### `RepeatedAtLeastTwiceProductIdGenerator` - `domain/part2/RepeatedAtLeastTwiceProductIdGenerator.java`
 
 1. Genera bloques de distintas longitudes.
 2. Repite cada bloque dos o más veces.
 3. Usa un `Set` para evitar candidatos duplicados.
 
-### `InvalidProductIdSumCalculatorPart2` - `dia2/src/main/java/domain/part2/InvalidProductIdSumCalculatorPart2.java`
+### `InvalidProductIdSumCalculatorPart2` - `domain/part2/InvalidProductIdSumCalculatorPart2.java`
 
 1. Calcula el límite máximo de generación.
 2. Genera candidatos con repetición de al menos dos bloques.
 3. Reutiliza el sumador común para calcular el total.
 
-### `RangeSource` - `dia2/src/main/java/infrastructure/RangeSource.java`
+### `RangeSource` - `infrastructure/RangeSource.java`
 
 1. Define cómo obtener el contenido del input.
 2. Desacopla la aplicación de la lectura concreta.
 
-### `FileRangeSource` - `dia2/src/main/java/infrastructure/FileRangeSource.java`
+### `FileRangeSource` - `infrastructure/FileRangeSource.java`
 
 1. Guarda la ruta del fichero.
 2. Lee el contenido completo del input.

@@ -84,93 +84,6 @@ ordenada, pero aplican reglas distintas:
 su representante de circuito, el tamaño de cada componente conectada y cuántos
 circuitos quedan activos.
 
-## Resolución detallada
-
-### Parte 1
-
-Cada caja de conexión tiene coordenadas tridimensionales. Primero se generan todas
-las conexiones posibles entre pares de cajas y se ordenan por distancia euclídea al
-cuadrado. No se necesita la raíz cuadrada, porque comparar distancias al cuadrado
-mantiene el mismo orden y evita operaciones de coma flotante.
-
-```java
-for (int first = 0; first < junctionBoxes.size(); first++) {
-    for (int second = first + 1; second < junctionBoxes.size(); second++) {
-        long distanceSquared = junctionBoxes.get(first)
-                .distanceSquaredTo(junctionBoxes.get(second));
-        candidates.add(new ConnectionCandidate(first, second, distanceSquared));
-    }
-}
-
-candidates.sort(Comparator.comparingLong(ConnectionCandidate::distanceSquared)
-        .thenComparingInt(ConnectionCandidate::firstIndex)
-        .thenComparingInt(ConnectionCandidate::secondIndex));
-```
-
-La parte 1 procesa las primeras 1000 conexiones ordenadas y une las cajas con una
-estructura de unión-búsqueda (`CircuitNetwork`). Al final toma los tres circuitos
-más grandes y multiplica sus tamaños:
-
-```java
-for (int i = 0; i < processedConnections; i++) {
-    ConnectionCandidate candidate = candidates.get(i);
-    network.connect(candidate.firstIndex(), candidate.secondIndex());
-}
-
-return network.largestCircuitSizes(3).stream()
-        .mapToLong(Integer::longValue)
-        .reduce(1L, (left, right) -> left * right);
-```
-
-La unión-búsqueda mantiene el representante de cada circuito y comprime caminos
-para que las consultas posteriores sean más rápidas:
-
-```java
-private int find(int element) {
-    if (parents[element] != element) {
-        parents[element] = find(parents[element]);
-    }
-    return parents[element];
-}
-```
-
-### Parte 2
-
-La segunda parte procesa conexiones en el mismo orden, pero se detiene justo cuando
-todas las cajas quedan conectadas en un único circuito. La respuesta se calcula con
-las coordenadas `x` de las dos cajas de la conexión que provoca esa unión final.
-
-```java
-for (ConnectionCandidate candidate : candidates) {
-    boolean connectedDifferentCircuits =
-            network.connect(candidate.firstIndex(), candidate.secondIndex());
-
-    if (connectedDifferentCircuits && network.isSingleCircuit()) {
-        JunctionBox first = junctionBoxes.get(candidate.firstIndex());
-        JunctionBox second = junctionBoxes.get(candidate.secondIndex());
-        return first.x() * second.x();
-    }
-}
-```
-
-La llamada a `connect` devuelve `false` cuando la conexión une dos cajas que ya
-pertenecían al mismo circuito. Ese detalle evita aceptar como conexión final una
-arista redundante.
-
-```java
-public boolean connect(int first, int second) {
-    int firstRoot = find(first);
-    int secondRoot = find(second);
-
-    if (firstRoot == secondRoot) {
-        return false;
-    }
-
-    parents[secondRoot] = firstRoot;
-    circuitCount--;
-    return true;
-}
-```
 
 ## Uso de Streams
 
@@ -267,66 +180,66 @@ Contiene los detalles externos al dominio.
 
 ## Clases principales
 
-### `Main` - `dia8/src/main/java/Main.java`
+### `Main` - `Main.java`
 
 1. Calcula la ruta del input.
 2. Crea `FileJunctionBoxSource` y `PlaygroundSolver`.
 3. Ejecuta las dos partes.
 
-### `PlaygroundSolver` - `dia8/src/main/java/application/PlaygroundSolver.java`
+### `PlaygroundSolver` - `application/PlaygroundSolver.java`
 
 1. Lee las cajas de conexión.
 2. Las parsea con `JunctionBoxParser`.
 3. Ejecuta la calculadora correspondiente a cada parte.
 
-### `JunctionBoxParser` - `dia8/src/main/java/application/JunctionBoxParser.java`
+### `JunctionBoxParser` - `application/JunctionBoxParser.java`
 
 1. Recorre las líneas del input.
 2. Separa las tres coordenadas.
 3. Crea objetos `JunctionBox`.
 
-### `CircuitNetwork` - `dia8/src/main/java/domain/common/CircuitNetwork.java`
+### `CircuitNetwork` - `domain/common/CircuitNetwork.java`
 
 1. Mantiene componentes conectadas mediante unión-búsqueda.
 2. Une circuitos con `connect`.
 3. Calcula tamaños de los circuitos resultantes.
 
-### `ConnectionCandidate` - `dia8/src/main/java/domain/common/ConnectionCandidate.java`
+### `ConnectionCandidate` - `domain/common/ConnectionCandidate.java`
 
 1. Representa una posible conexión entre dos cajas.
 2. Guarda los índices de las cajas.
 3. Guarda la distancia al cuadrado usada para ordenar candidatos.
 
-### `ConnectionCandidateGenerator` - `dia8/src/main/java/domain/common/ConnectionCandidateGenerator.java`
+### `ConnectionCandidateGenerator` - `domain/common/ConnectionCandidateGenerator.java`
 
 1. Genera todos los pares posibles de cajas.
 2. Calcula la distancia al cuadrado de cada par.
 3. Devuelve los candidatos ordenados.
 
-### `JunctionBox` - `dia8/src/main/java/domain/common/JunctionBox.java`
+### `JunctionBox` - `domain/common/JunctionBox.java`
 
 1. Representa una caja con coordenadas `x`, `y`, `z`.
 2. Calcula la distancia al cuadrado respecto a otra caja.
 3. Sirve como nodo del problema de conexiones.
 
-### `CircuitSizeProductCalculatorPart1` - `dia8/src/main/java/domain/part1/CircuitSizeProductCalculatorPart1.java`
+### `CircuitSizeProductCalculatorPart1` - `domain/part1/CircuitSizeProductCalculatorPart1.java`
 
 1. Procesa un número fijo de conexiones más cercanas.
 2. Une cajas en `CircuitNetwork`.
 3. Multiplica los tamaños de los tres circuitos mayores.
 
-### `FinalConnectionXProductCalculatorPart2` - `dia8/src/main/java/domain/part2/FinalConnectionXProductCalculatorPart2.java`
+### `FinalConnectionXProductCalculatorPart2` - `domain/part2/FinalConnectionXProductCalculatorPart2.java`
 
 1. Procesa conexiones ordenadas por distancia.
 2. Se detiene cuando toda la red queda conectada.
 3. Devuelve el producto de las coordenadas `x` de la conexión final.
 
-### `JunctionBoxSource` - `dia8/src/main/java/infrastructure/JunctionBoxSource.java`
+### `JunctionBoxSource` - `infrastructure/JunctionBoxSource.java`
 
 1. Define cómo obtener las líneas de cajas.
 2. Separa la entrada de la lógica de conexión.
 
-### `FileJunctionBoxSource` - `dia8/src/main/java/infrastructure/FileJunctionBoxSource.java`
+### `FileJunctionBoxSource` - `infrastructure/FileJunctionBoxSource.java`
 
 1. Guarda la ruta del input.
 2. Lee todas las líneas del fichero.

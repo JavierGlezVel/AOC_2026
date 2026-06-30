@@ -121,85 +121,6 @@ Se usa `BigInteger` porque el número de líneas temporales crece de forma
 exponencial con los divisores alcanzados y puede superar el rango de tipos enteros
 pequeños.
 
-## Resolución detallada
-
-### Parte 1
-
-La entrada se modela como una cuadrícula con un único punto de inicio `S` y
-divisores `^`. La parte 1 simula qué columnas tienen un haz activo en cada fila.
-Cuando un haz encuentra un divisor, deja de avanzar recto y se divide en dos haces:
-uno a la columna izquierda y otro a la derecha.
-
-La simulación guarda solo columnas activas, no objetos de haz completos. Esto basta
-porque todos los haces avanzan una fila por iteración:
-
-```java
-GridPosition start = manifold.start();
-Set<Integer> activeColumns = Set.of(start.column());
-
-for (int row = start.row() + 1; row < manifold.height() && !activeColumns.isEmpty(); row++) {
-    Set<Integer> nextActiveColumns = new HashSet<>();
-
-    for (int column : activeColumns) {
-        GridPosition position = new GridPosition(row, column);
-        if (manifold.isSplitterAt(position)) {
-            splits++;
-            addIfInside(manifold, nextActiveColumns, column - 1);
-            addIfInside(manifold, nextActiveColumns, column + 1);
-        } else {
-            nextActiveColumns.add(column);
-        }
-    }
-
-    activeColumns = nextActiveColumns;
-}
-```
-
-`Set<Integer>` evita duplicar trabajo si dos haces llegan a la misma columna en la
-misma fila. Para la parte 1 solo importa contar divisiones, no cuántas líneas
-temporales llegan por cada columna.
-
-### Parte 2
-
-La segunda parte sí necesita contar cuántas líneas temporales distintas existen. Por
-eso se reemplaza el conjunto de columnas por un mapa `columna -> número de líneas`.
-Cuando varias líneas llegan a la misma columna, sus cantidades se suman.
-
-```java
-Map<Integer, BigInteger> activeTimelines = Map.of(start.column(), BigInteger.ONE);
-BigInteger completedTimelines = BigInteger.ZERO;
-```
-
-Al encontrar un divisor, cada línea temporal se propaga hacia izquierda y derecha.
-Si una rama sale del mapa, esa línea se considera completada:
-
-```java
-private BigInteger split(TachyonManifold manifold,
-                         Map<Integer, BigInteger> activeTimelines,
-                         BigInteger completedTimelines,
-                         int column,
-                         BigInteger timelines) {
-    if (manifold.containsColumn(column)) {
-        addTimelines(activeTimelines, column, timelines);
-        return completedTimelines;
-    }
-    return completedTimelines.add(timelines);
-}
-```
-
-El uso de `BigInteger` evita desbordamientos cuando las divisiones multiplican el
-número de líneas temporales:
-
-```java
-private void addTimelines(Map<Integer, BigInteger> activeTimelines,
-                          int column,
-                          BigInteger timelines) {
-    activeTimelines.merge(column, timelines, BigInteger::add);
-}
-```
-
-Al terminar, se suman las líneas que ya salieron del mapa y las que siguen activas
-al alcanzar la última fila.
 
 ## Uso de Streams
 
@@ -269,54 +190,54 @@ Contiene los detalles externos al dominio.
 
 ## Clases principales
 
-### `Main` - `dia7/src/main/java/Main.java`
+### `Main` - `Main.java`
 
 1. Calcula la ruta del input.
 2. Crea `FileDiagramSource` y `LaboratorySolver`.
 3. Muestra el resultado de ambas partes.
 
-### `LaboratorySolver` - `dia7/src/main/java/application/LaboratorySolver.java`
+### `LaboratorySolver` - `application/LaboratorySolver.java`
 
 1. Lee el diagrama del colector.
 2. Lo convierte en `TachyonManifold`.
 3. Delega la simulación en el contador de cada parte.
 
-### `TachyonManifoldParser` - `dia7/src/main/java/application/TachyonManifoldParser.java`
+### `TachyonManifoldParser` - `application/TachyonManifoldParser.java`
 
 1. Recibe las líneas del diagrama.
 2. Construye un `TachyonManifold`.
 3. Deja la validación del mapa en el propio dominio.
 
-### `GridPosition` - `dia7/src/main/java/domain/common/GridPosition.java`
+### `GridPosition` - `domain/common/GridPosition.java`
 
 1. Representa una posición del colector.
 2. Guarda fila y columna.
 3. Evita trabajar con coordenadas sueltas.
 
-### `TachyonManifold` - `dia7/src/main/java/domain/common/TachyonManifold.java`
+### `TachyonManifold` - `domain/common/TachyonManifold.java`
 
 1. Representa el diagrama del colector.
 2. Valida caracteres, dimensiones y punto de inicio.
 3. Ofrece consultas como `start`, `isSplitterAt` y `containsColumn`.
 
-### `BeamSplitCounterPart1` - `dia7/src/main/java/domain/part1/BeamSplitCounterPart1.java`
+### `BeamSplitCounterPart1` - `domain/part1/BeamSplitCounterPart1.java`
 
 1. Simula columnas activas de haces.
 2. Cuenta cada divisor encontrado.
 3. Propaga los haces hacia izquierda y derecha.
 
-### `TimelineCounterPart2` - `dia7/src/main/java/domain/part2/TimelineCounterPart2.java`
+### `TimelineCounterPart2` - `domain/part2/TimelineCounterPart2.java`
 
 1. Simula líneas temporales con cantidad por columna.
 2. Suma líneas que salen del mapa.
 3. Devuelve el total con `BigInteger`.
 
-### `DiagramSource` - `dia7/src/main/java/infrastructure/DiagramSource.java`
+### `DiagramSource` - `infrastructure/DiagramSource.java`
 
 1. Define la lectura de líneas del diagrama.
 2. Permite cambiar la fuente sin tocar la simulación.
 
-### `FileDiagramSource` - `dia7/src/main/java/infrastructure/FileDiagramSource.java`
+### `FileDiagramSource` - `infrastructure/FileDiagramSource.java`
 
 1. Guarda la ruta del input.
 2. Lee las líneas del fichero.

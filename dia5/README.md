@@ -113,99 +113,6 @@ if (currentRange.overlapsOrTouches(range)) {
 
 Así, un ID cubierto por varios rangos se cuenta una sola vez.
 
-## Resolución detallada
-
-### Parte 1
-
-La primera parte recibe una lista de IDs disponibles y una lista de rangos frescos.
-La solución comprueba cada ID disponible contra todos los rangos y cuenta cuántos
-pertenecen al menos a uno. La lógica de pertenencia está encapsulada en
-`FreshIngredientIdRange`, que representa un intervalo cerrado.
-
-```java
-public boolean contains(long ingredientId) {
-    return firstId <= ingredientId && ingredientId <= lastId;
-}
-```
-
-La calculadora recorre los IDs disponibles y delega la comprobación en `isFresh`:
-
-```java
-public int count(InventoryDatabase database) {
-    int freshIngredientIds = 0;
-
-    for (long ingredientId : database.availableIngredientIds()) {
-        if (isFresh(ingredientId, database)) {
-            freshIngredientIds++;
-        }
-    }
-
-    return freshIngredientIds;
-}
-```
-
-El método auxiliar termina en cuanto encuentra un rango que contiene el ID. No hace
-falta seguir buscando porque el resultado ya es verdadero:
-
-```java
-private boolean isFresh(long ingredientId, InventoryDatabase database) {
-    for (FreshIngredientIdRange range : database.freshRanges()) {
-        if (range.contains(ingredientId)) {
-            return true;
-        }
-    }
-    return false;
-}
-```
-
-### Parte 2
-
-La segunda parte ya no pregunta por los IDs disponibles, sino por cuántos IDs
-distintos quedan cubiertos por todos los rangos frescos. Para no contar dos veces
-los solapamientos, se ordenan los rangos por inicio y se fusionan los que se solapan
-o se tocan.
-
-El propio intervalo sabe si puede fusionarse con otro:
-
-```java
-public boolean overlapsOrTouches(FreshIngredientIdRange other) {
-    return firstId <= other.lastId + 1 && other.firstId <= lastId + 1;
-}
-
-public FreshIngredientIdRange merge(FreshIngredientIdRange other) {
-    return new FreshIngredientIdRange(
-            Math.min(firstId, other.firstId),
-            Math.max(lastId, other.lastId)
-    );
-}
-```
-
-La calculadora mantiene un intervalo acumulado. Si el siguiente rango se une con él,
-se fusiona; si queda separado, se suma el tamaño del acumulado y se empieza uno
-nuevo:
-
-```java
-for (FreshIngredientIdRange range : sortedRanges) {
-    if (currentRange == null) {
-        currentRange = range;
-        continue;
-    }
-
-    if (currentRange.overlapsOrTouches(range)) {
-        currentRange = currentRange.merge(range);
-    } else {
-        freshIngredientIds += currentRange.size();
-        currentRange = range;
-    }
-}
-
-if (currentRange != null) {
-    freshIngredientIds += currentRange.size();
-}
-```
-
-Con esto, rangos como `10-20` y `15-25` se cuentan como `10-25`, no como dos
-tramos independientes.
 
 ## Uso de Streams
 
@@ -275,54 +182,54 @@ Contiene los detalles externos al dominio.
 
 ## Clases principales
 
-### `Main` - `dia5/src/main/java/Main.java`
+### `Main` - `Main.java`
 
 1. Localiza el input del día.
 2. Crea `FileDatabaseSource` y `CafeteriaSolver`.
 3. Ejecuta las dos partes y muestra sus resultados.
 
-### `CafeteriaSolver` - `dia5/src/main/java/application/CafeteriaSolver.java`
+### `CafeteriaSolver` - `application/CafeteriaSolver.java`
 
 1. Lee la base de datos mediante `DatabaseSource`.
 2. La convierte en `InventoryDatabase` con `InventoryDatabaseParser`.
 3. Delega la parte 1 y la parte 2 en sus contadores.
 
-### `InventoryDatabaseParser` - `dia5/src/main/java/application/InventoryDatabaseParser.java`
+### `InventoryDatabaseParser` - `application/InventoryDatabaseParser.java`
 
 1. Separa los rangos frescos de los IDs disponibles.
 2. Convierte cada rango textual en `FreshIngredientIdRange`.
 3. Construye un `InventoryDatabase`.
 
-### `FreshIngredientIdRange` - `dia5/src/main/java/domain/common/FreshIngredientIdRange.java`
+### `FreshIngredientIdRange` - `domain/common/FreshIngredientIdRange.java`
 
 1. Representa un intervalo cerrado de IDs.
 2. Comprueba pertenencia con `contains`.
 3. Permite fusionar rangos que se solapan o se tocan.
 
-### `InventoryDatabase` - `dia5/src/main/java/domain/common/InventoryDatabase.java`
+### `InventoryDatabase` - `domain/common/InventoryDatabase.java`
 
 1. Agrupa los rangos frescos y los IDs disponibles.
 2. Copia las listas para evitar modificaciones externas.
 3. Sirve como entrada común para ambas partes.
 
-### `FreshIngredientCounterPart1` - `dia5/src/main/java/domain/part1/FreshIngredientCounterPart1.java`
+### `FreshIngredientCounterPart1` - `domain/part1/FreshIngredientCounterPart1.java`
 
 1. Recorre los IDs disponibles.
 2. Comprueba si cada ID cae dentro de algún rango fresco.
 3. Cuenta cuántos IDs disponibles son frescos.
 
-### `FreshIngredientIdCoverageCounterPart2` - `dia5/src/main/java/domain/part2/FreshIngredientIdCoverageCounterPart2.java`
+### `FreshIngredientIdCoverageCounterPart2` - `domain/part2/FreshIngredientIdCoverageCounterPart2.java`
 
 1. Ordena los rangos frescos.
 2. Fusiona rangos solapados o contiguos.
 3. Suma la cobertura total sin contar duplicados.
 
-### `DatabaseSource` - `dia5/src/main/java/infrastructure/DatabaseSource.java`
+### `DatabaseSource` - `infrastructure/DatabaseSource.java`
 
 1. Define cómo obtener las líneas de la base de datos.
 2. Desacopla el solver del mecanismo concreto de lectura.
 
-### `FileDatabaseSource` - `dia5/src/main/java/infrastructure/FileDatabaseSource.java`
+### `FileDatabaseSource` - `infrastructure/FileDatabaseSource.java`
 
 1. Guarda la ruta del fichero.
 2. Lee todas sus líneas.

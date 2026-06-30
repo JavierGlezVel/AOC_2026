@@ -90,112 +90,6 @@ gaussiana exacta usando fracciones, y enumera solo las variables libres. En este
 input, cada máquina deja como máximo tres variables libres, así que la búsqueda es
 exacta y acotada.
 
-## Resolución detallada
-
-### Parte 1
-
-Cada máquina se representa con una máscara de bits: cada luz ocupa un bit y cada
-botón indica qué luces cambia. Pulsar un botón equivale a aplicar XOR sobre la
-máscara actual. La parte 1 busca el subconjunto de botones con menor número de
-pulsaciones que deja la máquina en la máscara objetivo.
-
-La solución enumera todos los subconjuntos posibles de botones. Si una combinación
-ya usa más pulsaciones que la mejor conocida, se descarta antes de calcular su
-resultado:
-
-```java
-int bestPresses = Integer.MAX_VALUE;
-int buttonCount = machine.buttonMasks().size();
-int combinations = 1 << buttonCount;
-
-for (int combination = 0; combination < combinations; combination++) {
-    int currentMask = 0;
-    int presses = Integer.bitCount(combination);
-    if (presses >= bestPresses) {
-        continue;
-    }
-
-    for (int button = 0; button < buttonCount; button++) {
-        if ((combination & (1 << button)) != 0) {
-            currentMask ^= machine.buttonMasks().get(button);
-        }
-    }
-
-    if (currentMask == machine.targetMask()) {
-        bestPresses = presses;
-    }
-}
-```
-
-La respuesta del día es la suma del mínimo de pulsaciones de cada máquina:
-
-```java
-return machines.stream()
-        .mapToInt(this::minimumPresses)
-        .sum();
-```
-
-### Parte 2
-
-La segunda parte deja de ser una búsqueda de botones pulsados una vez. Ahora cada
-botón puede pulsarse varias veces para alcanzar requisitos de voltaje. El problema
-se modela como un sistema lineal: cada contador es una ecuación y cada botón es una
-variable que suma `1` a los contadores a los que afecta.
-
-La matriz aumentada se construye con `1` si el botón afecta a un contador y `0` en
-caso contrario; la última columna contiene el requisito de voltaje:
-
-```java
-for (int counter = 0; counter < counterCount; counter++) {
-    for (int button = 0; button < buttonCount; button++) {
-        boolean affectsCounter =
-                (machine.buttonMasks().get(button) & (1 << counter)) != 0;
-        matrix[counter][button] = Fraction.of(affectsCounter ? 1 : 0);
-    }
-    matrix[counter][buttonCount] =
-            Fraction.of(machine.joltageRequirements().get(counter));
-}
-```
-
-Después se aplica eliminación gaussiana para obtener columnas pivote y columnas
-libres. Se usan fracciones exactas para no perder precisión:
-
-```java
-Fraction pivotValue = matrix[rank][column];
-for (int currentColumn = 0; currentColumn <= buttonCount; currentColumn++) {
-    matrix[rank][currentColumn] =
-            matrix[rank][currentColumn].divide(pivotValue);
-}
-
-for (int row = 0; row < counterCount; row++) {
-    if (row == rank || matrix[row][column].isZero()) {
-        continue;
-    }
-    Fraction factor = matrix[row][column];
-    for (int currentColumn = 0; currentColumn <= buttonCount; currentColumn++) {
-        matrix[row][currentColumn] = matrix[row][currentColumn]
-                .subtract(factor.multiply(matrix[rank][currentColumn]));
-    }
-}
-```
-
-Si quedan variables libres, se enumeran sus valores posibles. Para cada asignación
-se calculan las variables pivote, y solo se aceptan soluciones enteras, no negativas
-y mejores que la mejor ya encontrada:
-
-```java
-if (!value.isInteger() || value.isNegative()) {
-    return NO_SOLUTION;
-}
-
-totalPresses += value.asLong();
-if (totalPresses >= best) {
-    return NO_SOLUTION;
-}
-```
-
-Así la parte 2 combina álgebra lineal para reducir el espacio de búsqueda y una
-enumeración acotada para escoger la solución con menos pulsaciones.
 
 ## Uso de Streams
 
@@ -287,60 +181,60 @@ Contiene los detalles externos al dominio.
 
 ## Clases principales
 
-### `Main` - `dia10/src/main/java/Main.java`
+### `Main` - `Main.java`
 
 1. Calcula la ruta del input del día 10.
 2. Crea `FileFactoryMachineSource` y `FactorySolver`.
 3. Ejecuta las dos partes y muestra los resultados.
 
-### `FactorySolver` - `dia10/src/main/java/application/FactorySolver.java`
+### `FactorySolver` - `application/FactorySolver.java`
 
 1. Lee el input mediante `FactoryMachineSource`.
 2. Convierte los bloques de texto en máquinas con `FactoryMachineParser`.
 3. Llama a la calculadora de la parte 1 o de la parte 2 según corresponda.
 
-### `FactoryMachineParser` - `dia10/src/main/java/application/FactoryMachineParser.java`
+### `FactoryMachineParser` - `application/FactoryMachineParser.java`
 
 1. Divide el input en bloques, uno por máquina.
 2. Extrae botones, máscaras de contadores y requisitos de voltaje.
 3. Construye objetos `FactoryMachine` con la información ya validada.
 
-### `FactoryMachine` - `dia10/src/main/java/domain/common/FactoryMachine.java`
+### `FactoryMachine` - `domain/common/FactoryMachine.java`
 
 1. Representa una máquina con sus botones y contadores.
 2. Guarda qué contadores afecta cada botón.
 3. Expone los datos necesarios para calcular el mínimo de pulsaciones.
 
-### `MinimumButtonPressesCalculatorPart1` - `dia10/src/main/java/domain/part1/MinimumButtonPressesCalculatorPart1.java`
+### `MinimumButtonPressesCalculatorPart1` - `domain/part1/MinimumButtonPressesCalculatorPart1.java`
 
 1. Recorre las máquinas del input.
 2. Busca combinaciones de pulsaciones que enciendan todos los contadores.
 3. Suma el mínimo de pulsaciones necesario para cada máquina.
 
-### `MinimumJoltageButtonPressesCalculatorPart2` - `dia10/src/main/java/domain/part2/MinimumJoltageButtonPressesCalculatorPart2.java`
+### `MinimumJoltageButtonPressesCalculatorPart2` - `domain/part2/MinimumJoltageButtonPressesCalculatorPart2.java`
 
 1. Traduce cada máquina a un sistema lineal de ecuaciones.
 2. Reduce la matriz para separar columnas pivote y variables libres.
 3. Enumera soluciones enteras no negativas y se queda con la de menor coste.
 
-### `LinearSystem` - `dia10/src/main/java/domain/part2/MinimumJoltageButtonPressesCalculatorPart2.java`
+### `LinearSystem` - `domain/part2/MinimumJoltageButtonPressesCalculatorPart2.java`
 
 1. Guarda la matriz reducida del sistema.
 2. Conserva las columnas pivote y las columnas libres.
 3. Permite evaluar soluciones candidatas sin recalcular la reducción.
 
-### `Fraction` - `dia10/src/main/java/domain/part2/MinimumJoltageButtonPressesCalculatorPart2.java`
+### `Fraction` - `domain/part2/MinimumJoltageButtonPressesCalculatorPart2.java`
 
 1. Representa números racionales exactos durante la reducción.
 2. Normaliza signo y divisor común.
 3. Evita errores de redondeo al comprobar si una solución es entera.
 
-### `FactoryMachineSource` - `dia10/src/main/java/infrastructure/FactoryMachineSource.java`
+### `FactoryMachineSource` - `infrastructure/FactoryMachineSource.java`
 
 1. Define cómo obtener las líneas del input.
 2. Desacopla el solver del origen físico de los datos.
 
-### `FileFactoryMachineSource` - `dia10/src/main/java/infrastructure/FileFactoryMachineSource.java`
+### `FileFactoryMachineSource` - `infrastructure/FileFactoryMachineSource.java`
 
 1. Guarda la ruta del fichero de entrada.
 2. Lee sus líneas desde disco.

@@ -108,104 +108,6 @@ el polígono por filas:
 Esta técnica mantiene el cálculo exacto sin depender del tamaño real de las
 coordenadas.
 
-## Resolución detallada
-
-### Parte 1
-
-La primera parte busca el rectángulo de mayor área que puede formarse usando dos
-baldosas rojas como esquinas opuestas. Como no hay restricción de contención todavía,
-la solución compara todos los pares de baldosas rojas y calcula el área del
-rectángulo cerrado que determinan.
-
-El cálculo del área está en `RedTile`, porque depende únicamente de dos puntos:
-
-```java
-public long rectangleAreaWith(RedTile other) {
-    long width = Math.abs(x - other.x) + 1;
-    long height = Math.abs(y - other.y) + 1;
-    return width * height;
-}
-```
-
-La calculadora de la parte 1 recorre los pares sin repetir combinaciones:
-
-```java
-long largestArea = 0;
-for (int first = 0; first < redTiles.size(); first++) {
-    for (int second = first + 1; second < redTiles.size(); second++) {
-        long area = redTiles.get(first).rectangleAreaWith(redTiles.get(second));
-        largestArea = Math.max(largestArea, area);
-    }
-}
-
-return largestArea;
-```
-
-Este planteamiento es suficiente porque cada respuesta candidata está definida por
-dos vértices del conjunto de entrada.
-
-### Parte 2
-
-La segunda parte añade una restricción: el rectángulo elegido debe estar contenido
-dentro de la zona delimitada por las baldosas rojas y verdes. La solución mantiene
-la enumeración de pares, pero antes de aceptar un área comprueba si el rectángulo
-queda cubierto por la figura.
-
-Primero se construye `RedGreenTileArea`, que valida que los vértices formen un bucle
-ortogonal y precalcula qué intervalos de `x` están cubiertos para grupos de filas:
-
-```java
-private List<RowCoverage> buildRowCoverages() {
-    List<Long> yCoordinates = sortedYCoordinates();
-    List<RowCoverage> coverages = new ArrayList<>();
-
-    for (long y : yCoordinates) {
-        coverages.add(new RowCoverage(y, y, exactRowIntervals(y)));
-    }
-
-    for (int i = 0; i < yCoordinates.size() - 1; i++) {
-        long lowerY = yCoordinates.get(i);
-        long upperY = yCoordinates.get(i + 1);
-        long firstInteriorRow = lowerY + 1;
-        long lastInteriorRow = upperY - 1;
-
-        if (firstInteriorRow <= lastInteriorRow) {
-            coverages.add(new RowCoverage(firstInteriorRow, lastInteriorRow,
-                    openRowIntervals(lowerY + 0.5)));
-        }
-    }
-
-    return List.copyOf(coverages);
-}
-```
-
-Para comprobar un rectángulo se transforma en un intervalo horizontal y un rango de
-filas. Todas las coberturas que intersectan esas filas deben contener el intervalo
-completo de `x`:
-
-```java
-public boolean containsRectangle(RedTile firstCorner, RedTile secondCorner) {
-    long firstX = Math.min(firstCorner.x(), secondCorner.x());
-    long lastX = Math.max(firstCorner.x(), secondCorner.x());
-    long firstY = Math.min(firstCorner.y(), secondCorner.y());
-    long lastY = Math.max(firstCorner.y(), secondCorner.y());
-    ClosedInterval xInterval = new ClosedInterval(firstX, lastX);
-
-    return rowCoverages.stream()
-            .filter(rowCoverage -> rowCoverage.intersectsRows(firstY, lastY))
-            .allMatch(rowCoverage -> rowCoverage.containsXInterval(xInterval));
-}
-```
-
-La parte 2 solo actualiza el máximo cuando el rectángulo es más grande que el mejor
-actual y además está contenido:
-
-```java
-if (rectangleArea > largestArea
-        && area.containsRectangle(firstCorner, secondCorner)) {
-    largestArea = rectangleArea;
-}
-```
 
 ## Uso de Streams
 
@@ -309,66 +211,66 @@ Contiene los detalles externos al dominio.
 
 ## Clases principales
 
-### `Main` - `dia9/src/main/java/Main.java`
+### `Main` - `Main.java`
 
 1. Calcula la ruta del fichero de entrada del día 9.
 2. Crea `FileRedTileSource` y `MovieTheaterSolver`.
 3. Ejecuta la parte 1 y la parte 2, mostrando sus resultados por consola.
 
-### `MovieTheaterSolver` - `dia9/src/main/java/application/MovieTheaterSolver.java`
+### `MovieTheaterSolver` - `application/MovieTheaterSolver.java`
 
 1. Pide las líneas del input a `RedTileSource`.
 2. Convierte esas líneas en una lista de `RedTile` mediante `RedTileParser`.
 3. Delega cada parte en su calculadora correspondiente.
 
-### `RedTileParser` - `dia9/src/main/java/application/RedTileParser.java`
+### `RedTileParser` - `application/RedTileParser.java`
 
 1. Recorre las líneas con coordenadas de baldosas rojas.
 2. Separa los valores `x` e `y` de cada coordenada.
 3. Crea objetos `RedTile` ya validados para el dominio.
 
-### `ClosedInterval` - `dia9/src/main/java/domain/common/ClosedInterval.java`
+### `ClosedInterval` - `domain/common/ClosedInterval.java`
 
 1. Representa un intervalo cerrado con inicio y fin.
 2. Comprueba si contiene otro intervalo.
 3. Detecta y fusiona intervalos que se solapan o se tocan.
 
-### `RedGreenTileArea` - `dia9/src/main/java/domain/common/RedGreenTileArea.java`
+### `RedGreenTileArea` - `domain/common/RedGreenTileArea.java`
 
 1. Recibe las baldosas rojas que delimitan el área.
 2. Construye coberturas horizontales por filas.
 3. Comprueba si un rectángulo completo queda dentro de la zona válida.
 
-### `RedTile` - `dia9/src/main/java/domain/common/RedTile.java`
+### `RedTile` - `domain/common/RedTile.java`
 
 1. Representa una baldosa mediante sus coordenadas.
 2. Calcula el área del rectángulo formado con otra baldosa.
 3. Actúa como esquina candidata para formar rectángulos.
 
-### `RowCoverage` - `dia9/src/main/java/domain/common/RowCoverage.java`
+### `RowCoverage` - `domain/common/RowCoverage.java`
 
 1. Agrupa los intervalos horizontales cubiertos en un rango de filas.
 2. Fusiona intervalos compatibles para simplificar la cobertura.
 3. Comprueba si una fila cubre completamente un intervalo de columnas.
 
-### `LargestRectangleAreaCalculatorPart1` - `dia9/src/main/java/domain/part1/LargestRectangleAreaCalculatorPart1.java`
+### `LargestRectangleAreaCalculatorPart1` - `domain/part1/LargestRectangleAreaCalculatorPart1.java`
 
 1. Prueba combinaciones de dos baldosas rojas.
 2. Calcula el área del rectángulo que formarían como esquinas opuestas.
 3. Devuelve el mayor área encontrada.
 
-### `LargestContainedRectangleAreaCalculatorPart2` - `dia9/src/main/java/domain/part2/LargestContainedRectangleAreaCalculatorPart2.java`
+### `LargestContainedRectangleAreaCalculatorPart2` - `domain/part2/LargestContainedRectangleAreaCalculatorPart2.java`
 
 1. Construye un `RedGreenTileArea` para saber qué posiciones son válidas.
 2. Prueba pares de baldosas como en la parte 1.
 3. Solo acepta rectángulos que estén completamente contenidos en el área.
 
-### `RedTileSource` - `dia9/src/main/java/infrastructure/RedTileSource.java`
+### `RedTileSource` - `infrastructure/RedTileSource.java`
 
 1. Define la operación para obtener líneas de coordenadas.
 2. Permite que la aplicación dependa de una abstracción y no de un fichero concreto.
 
-### `FileRedTileSource` - `dia9/src/main/java/infrastructure/FileRedTileSource.java`
+### `FileRedTileSource` - `infrastructure/FileRedTileSource.java`
 
 1. Guarda la ruta del fichero de entrada.
 2. Lee todas sus líneas.

@@ -97,118 +97,6 @@ de arriba abajo en esa columna.
 cada problema delegando en `MathOperation`, y suman los resultados con `BigInteger`
 para evitar desbordamientos cuando un ejercicio contiene multiplicaciones grandes.
 
-## Resolución detallada
-
-### Parte 1
-
-La entrada se interpreta como una hoja de cálculo dibujada con texto. Primero se
-normalizan las líneas para que todas tengan la misma anchura y después se localizan
-los bloques de columnas separados por columnas en blanco. Cada bloque contiene un
-problema matemático y una operación (`+` o `*`) en la última fila.
-
-```java
-private List<ColumnRange> findProblemRanges(List<String> lines) {
-    int width = lines.getFirst().length();
-    List<ColumnRange> problemRanges = new ArrayList<>();
-    int column = 0;
-
-    while (column < width) {
-        while (column < width && isBlankColumn(lines, column)) {
-            column++;
-        }
-        if (column == width) {
-            break;
-        }
-
-        int startColumn = column;
-        while (column < width && !isBlankColumn(lines, column)) {
-            column++;
-        }
-        problemRanges.add(new ColumnRange(startColumn, column));
-    }
-
-    return problemRanges;
-}
-```
-
-En la parte 1 los números se leen de arriba abajo dentro de cada bloque. Cada fila
-no vacía se convierte en un `BigInteger` para evitar desbordamientos:
-
-```java
-private MathProblem parseProblemTopToBottom(List<String> lines, ColumnRange range) {
-    List<BigInteger> numbers = new ArrayList<>();
-    int operationRowIndex = lines.size() - 1;
-
-    for (int row = 0; row < operationRowIndex; row++) {
-        String value = lines.get(row)
-                .substring(range.startColumn(), range.endColumn())
-                .trim();
-        if (!value.isEmpty()) {
-            numbers.add(new BigInteger(value));
-        }
-    }
-
-    return new MathProblem(numbers, parseOperation(lines, range));
-}
-```
-
-Después se aplica la operación de cada problema y se suma el total:
-
-```java
-return problems.stream()
-        .map(problem -> problem.operation().apply(problem.numbers()))
-        .reduce(BigInteger.ZERO, BigInteger::add);
-```
-
-### Parte 2
-
-La segunda parte mantiene el mismo modelo `MathProblem`, pero cambia cómo se leen
-los operandos: ahora se recorren los bloques de derecha a izquierda y, dentro de
-cada columna, se construye un número con los dígitos verticales.
-
-```java
-public List<MathProblem> parseRightToLeft(List<String> lines) {
-    List<String> normalizedLines = normalize(lines);
-    List<ColumnRange> problemRanges = findProblemRanges(normalizedLines);
-    List<MathProblem> problems = new ArrayList<>();
-
-    for (int i = problemRanges.size() - 1; i >= 0; i--) {
-        problems.add(parseProblemRightToLeft(normalizedLines, problemRanges.get(i)));
-    }
-
-    return problems;
-}
-```
-
-La lectura vertical toma cada columna del bloque desde la derecha hacia la izquierda
-y concatena los caracteres no vacíos de las filas de números:
-
-```java
-for (int column = range.endColumn() - 1; column >= range.startColumn(); column--) {
-    StringBuilder value = new StringBuilder();
-    for (int row = 0; row < operationRowIndex; row++) {
-        char digit = lines.get(row).charAt(column);
-        if (digit != ' ') {
-            value.append(digit);
-        }
-    }
-    if (!value.isEmpty()) {
-        numbers.add(new BigInteger(value.toString()));
-    }
-}
-```
-
-El cálculo final no cambia: una vez parseados los problemas, `+` y `*` se aplican
-mediante el mismo `enum MathOperation`.
-
-```java
-ADD('+') {
-    @Override
-    public BigInteger apply(List<BigInteger> numbers) {
-        return numbers.stream().reduce(BigInteger.ZERO, BigInteger::add);
-    }
-}
-```
 
 ## Uso de Streams
 
@@ -321,54 +209,54 @@ Contiene los detalles externos al dominio.
 
 ## Clases principales
 
-### `Main` - `dia6/src/main/java/Main.java`
+### `Main` - `Main.java`
 
 1. Resuelve la ruta del input.
 2. Crea `FileWorksheetSource` y `TrashCompactorSolver`.
 3. Imprime el total de cada parte.
 
-### `TrashCompactorSolver` - `dia6/src/main/java/application/TrashCompactorSolver.java`
+### `TrashCompactorSolver` - `application/TrashCompactorSolver.java`
 
 1. Lee las líneas de la hoja con `WorksheetSource`.
 2. Usa `MathWorksheetParser` para obtener problemas matemáticos.
 3. Ejecuta la calculadora de la parte correspondiente.
 
-### `MathWorksheetParser` - `dia6/src/main/java/application/MathWorksheetParser.java`
+### `MathWorksheetParser` - `application/MathWorksheetParser.java`
 
 1. Normaliza el ancho de las líneas.
 2. Detecta bloques de columnas que forman problemas.
 3. Parsea números y operación en orden horizontal o vertical según la parte.
 
-### `MathOperation` - `dia6/src/main/java/domain/common/MathOperation.java`
+### `MathOperation` - `domain/common/MathOperation.java`
 
 1. Representa las operaciones permitidas (`+` y `*`).
 2. Convierte símbolos de entrada en operaciones.
 3. Aplica la operación a una lista de números.
 
-### `MathProblem` - `dia6/src/main/java/domain/common/MathProblem.java`
+### `MathProblem` - `domain/common/MathProblem.java`
 
 1. Agrupa los números de un problema y su operación.
 2. Valida que haya al menos un número.
 3. Copia la lista de números para mantener el objeto estable.
 
-### `WorksheetGrandTotalCalculatorPart1` - `dia6/src/main/java/domain/part1/WorksheetGrandTotalCalculatorPart1.java`
+### `WorksheetGrandTotalCalculatorPart1` - `domain/part1/WorksheetGrandTotalCalculatorPart1.java`
 
 1. Recibe los problemas parseados de izquierda a derecha.
 2. Aplica la operación de cada problema.
 3. Suma todos los resultados en un `BigInteger`.
 
-### `WorksheetGrandTotalCalculatorPart2` - `dia6/src/main/java/domain/part2/WorksheetGrandTotalCalculatorPart2.java`
+### `WorksheetGrandTotalCalculatorPart2` - `domain/part2/WorksheetGrandTotalCalculatorPart2.java`
 
 1. Recibe los problemas parseados de derecha a izquierda.
 2. Aplica la misma lógica de operación que la parte 1.
 3. Suma el total final de la hoja.
 
-### `WorksheetSource` - `dia6/src/main/java/infrastructure/WorksheetSource.java`
+### `WorksheetSource` - `infrastructure/WorksheetSource.java`
 
 1. Define cómo obtener las líneas de la hoja.
 2. Aísla el solver de la fuente concreta.
 
-### `FileWorksheetSource` - `dia6/src/main/java/infrastructure/FileWorksheetSource.java`
+### `FileWorksheetSource` - `infrastructure/FileWorksheetSource.java`
 
 1. Guarda la ruta del fichero.
 2. Lee todas las líneas.

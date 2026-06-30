@@ -118,94 +118,6 @@ return banks.stream()
         .sum();
 ```
 
-## Resolución detallada
-
-### Parte 1
-
-Cada línea representa un banco de baterías como una cadena de dígitos. La parte 1
-necesita formar el mayor número posible encendiendo dos baterías y respetando el
-orden original. La solución usa un algoritmo voraz: para cada posición del resultado
-elige el mayor dígito posible dejando suficientes dígitos a la derecha para completar
-el número.
-
-La clase común `MaximumJoltageCalculator` recibe cuántas baterías hay que encender.
-Para la parte 1 se instancia con `2`:
-
-```java
-public TotalOutputJoltageCalculatorPart1() {
-    this(new MaximumJoltageCalculator(2));
-}
-```
-
-La selección voraz mantiene `searchStart`, que impide volver atrás en la cadena:
-
-```java
-for (int selected = 0; selected < batteriesToTurnOn; selected++) {
-    int searchEnd = ratings.length() - (batteriesToTurnOn - selected);
-    int bestIndex = searchStart;
-
-    for (int currentIndex = searchStart; currentIndex <= searchEnd; currentIndex++) {
-        if (ratings.charAt(currentIndex) > ratings.charAt(bestIndex)) {
-            bestIndex = currentIndex;
-        }
-    }
-
-    maximumJoltage.append(ratings.charAt(bestIndex));
-    searchStart = bestIndex + 1;
-}
-```
-
-El resultado de cada banco se suma con `TotalOutputJoltageCalculator`:
-
-```java
-return banks.stream()
-        .mapToLong(joltageCalculator::calculate)
-        .sum();
-```
-
-### Parte 2
-
-La segunda parte conserva exactamente el mismo problema algorítmico, pero cambia el
-número de baterías que hay que seleccionar. En lugar de duplicar la lógica, se
-reutiliza el mismo calculador voraz parametrizado con `12`:
-
-```java
-public TotalOutputJoltageCalculatorPart2() {
-    this(new MaximumJoltageCalculator(12));
-}
-```
-
-Esto funciona porque el algoritmo no depende de que se seleccionen dos dígitos:
-solo necesita saber cuántas posiciones tendrá el número final. La regla de
-optimización sigue siendo la misma: elegir el mayor dígito posible en cada paso sin
-impedir completar las posiciones restantes.
-
-```java
-public long calculate(BatteryBank bank) {
-    String ratings = bank.ratings();
-    StringBuilder maximumJoltage = new StringBuilder();
-    int searchStart = 0;
-
-    for (int selected = 0; selected < batteriesToTurnOn; selected++) {
-        int searchEnd = ratings.length() - (batteriesToTurnOn - selected);
-        int bestIndex = searchStart;
-
-        for (int currentIndex = searchStart; currentIndex <= searchEnd; currentIndex++) {
-            if (ratings.charAt(currentIndex) > ratings.charAt(bestIndex)) {
-                bestIndex = currentIndex;
-            }
-        }
-
-        maximumJoltage.append(ratings.charAt(bestIndex));
-        searchStart = bestIndex + 1;
-    }
-
-    return Long.parseLong(maximumJoltage.toString());
-}
-```
-
-La diferencia entre partes queda aislada en la configuración del servicio, no en la
-duplicación del algoritmo.
 
 ## Uso de Streams
 
@@ -277,63 +189,63 @@ Contiene los detalles externos al dominio.
 
 ## Clases principales
 
-### `Main` - `dia3/src/main/java/Main.java`
+### `Main` - `Main.java`
 
 1. Determina la ruta del input.
 2. Crea `FileBatteryBankSource` y `LobbySolver`.
 3. Imprime las respuestas de ambas partes.
 
-### `LobbySolver` - `dia3/src/main/java/application/LobbySolver.java`
+### `LobbySolver` - `application/LobbySolver.java`
 
 1. Lee las líneas de bancos de baterías.
 2. Usa `BatteryBankParser` para construir el modelo.
 3. Ejecuta `TotalOutputJoltageCalculatorPart1` o `TotalOutputJoltageCalculatorPart2`.
 
-### `BatteryBankParser` - `dia3/src/main/java/application/BatteryBankParser.java`
+### `BatteryBankParser` - `application/BatteryBankParser.java`
 
 1. Recorre las líneas del input.
 2. Limpia cada línea.
 3. Construye un `BatteryBank` por línea.
 
-### `BatteryBank` - `dia3/src/main/java/domain/common/BatteryBank.java`
+### `BatteryBank` - `domain/common/BatteryBank.java`
 
 1. Representa la secuencia de valores de un banco.
 2. Valida que haya suficientes baterías.
 3. Garantiza que los valores sean dígitos válidos.
 
-### `JoltageCalculator` - `dia3/src/main/java/domain/common/JoltageCalculator.java`
+### `JoltageCalculator` - `domain/common/JoltageCalculator.java`
 
 1. Define el contrato para calcular el joltage de un banco.
 2. Permite intercambiar la estrategia de cálculo usada por el totalizador.
 
-### `MaximumJoltageCalculator` - `dia3/src/main/java/domain/common/MaximumJoltageCalculator.java`
+### `MaximumJoltageCalculator` - `domain/common/MaximumJoltageCalculator.java`
 
 1. Recibe cuántas baterías deben seleccionarse.
 2. Elige vorazmente los dígitos que forman el mayor número posible.
 3. Devuelve el joltage máximo de un banco.
 
-### `TotalOutputJoltageCalculator` - `dia3/src/main/java/domain/common/TotalOutputJoltageCalculator.java`
+### `TotalOutputJoltageCalculator` - `domain/common/TotalOutputJoltageCalculator.java`
 
 1. Recibe un `JoltageCalculator`.
 2. Aplica esa estrategia a cada banco.
 3. Suma todos los joltages obtenidos.
 
-### `TotalOutputJoltageCalculatorPart1` - `dia3/src/main/java/domain/part1/TotalOutputJoltageCalculatorPart1.java`
+### `TotalOutputJoltageCalculatorPart1` - `domain/part1/TotalOutputJoltageCalculatorPart1.java`
 
 1. Configura el cálculo con 2 baterías.
 2. Delega la suma en `TotalOutputJoltageCalculator`.
 
-### `TotalOutputJoltageCalculatorPart2` - `dia3/src/main/java/domain/part2/TotalOutputJoltageCalculatorPart2.java`
+### `TotalOutputJoltageCalculatorPart2` - `domain/part2/TotalOutputJoltageCalculatorPart2.java`
 
 1. Configura el cálculo con 12 baterías.
 2. Reutiliza el mismo totalizador común.
 
-### `BatteryBankSource` - `dia3/src/main/java/infrastructure/BatteryBankSource.java`
+### `BatteryBankSource` - `infrastructure/BatteryBankSource.java`
 
 1. Define cómo obtener las líneas de entrada.
 2. Evita que el solver dependa de una fuente concreta.
 
-### `FileBatteryBankSource` - `dia3/src/main/java/infrastructure/FileBatteryBankSource.java`
+### `FileBatteryBankSource` - `infrastructure/FileBatteryBankSource.java`
 
 1. Guarda la ruta del input.
 2. Lee las líneas del fichero.

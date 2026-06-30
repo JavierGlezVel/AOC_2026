@@ -87,98 +87,6 @@ rollos adyacentes y, si alguno pasa a ser accesible, se añade a la cola.
 Esta solución aprovecha que el proceso es monotónico: retirar rollos nunca aumenta
 el número de vecinos de otro rollo.
 
-## Resolución detallada
-
-### Parte 1
-
-El mapa se modela como una cuadrícula rectangular donde `@` representa un rollo de
-papel. Para cada celda se comprueba si contiene un rollo y cuántos rollos hay en sus
-ocho posiciones vecinas. Un rollo es accesible si tiene como máximo tres rollos
-adyacentes.
-
-La responsabilidad de conocer los límites del mapa y las posiciones vecinas está en
-`PaperRollMap`:
-
-```java
-public List<GridPosition> adjacentPositions(GridPosition position) {
-    List<GridPosition> adjacentPositions = new ArrayList<>();
-
-    for (int rowOffset = -1; rowOffset <= 1; rowOffset++) {
-        for (int columnOffset = -1; columnOffset <= 1; columnOffset++) {
-            if (rowOffset == 0 && columnOffset == 0) {
-                continue;
-            }
-
-            GridPosition adjacent = new GridPosition(
-                    position.row() + rowOffset,
-                    position.column() + columnOffset
-            );
-            if (contains(adjacent)) {
-                adjacentPositions.add(adjacent);
-            }
-        }
-    }
-
-    return adjacentPositions;
-}
-```
-
-La calculadora de la parte 1 recorre toda la matriz y aplica la regla de acceso:
-
-```java
-for (int row = 0; row < map.height(); row++) {
-    for (int column = 0; column < map.width(); column++) {
-        GridPosition position = new GridPosition(row, column);
-        if (map.isPaperRollAt(position)
-                && map.countAdjacentPaperRolls(position) <= 3) {
-            accessiblePaperRolls++;
-        }
-    }
-}
-```
-
-### Parte 2
-
-En la segunda parte los rollos accesibles se retiran, y esa retirada puede hacer
-accesibles a otros rollos. La solución usa una cola: primero se encolan todos los
-rollos accesibles, luego se extraen uno a uno, se marcan como retirados y se
-actualiza el contador de adyacentes de sus vecinos.
-
-La clave es no recalcular toda la cuadrícula tras cada retirada. Se mantiene una
-matriz de rollos restantes y otra con el número actual de vecinos:
-
-```java
-boolean[][] remainingPaperRolls = copyPaperRolls(map);
-int[][] adjacentPaperRolls = countInitialAdjacentPaperRolls(map);
-Queue<GridPosition> accessiblePaperRolls = new ArrayDeque<>();
-```
-
-Cuando se retira un rollo, solo cambian sus vecinos inmediatos:
-
-```java
-while (!accessiblePaperRolls.isEmpty()) {
-    GridPosition position = accessiblePaperRolls.remove();
-    if (!remainingPaperRolls[position.row()][position.column()]) {
-        continue;
-    }
-
-    remainingPaperRolls[position.row()][position.column()] = false;
-    removedPaperRolls++;
-    updateAdjacentPaperRolls(map, position, remainingPaperRolls,
-            adjacentPaperRolls, queuedPaperRolls, accessiblePaperRolls);
-}
-```
-
-Y cada vecino que pasa a cumplir la regla se mete en la cola:
-
-```java
-if (remainingPaperRolls[position.row()][position.column()]
-        && adjacentPaperRolls[position.row()][position.column()] <= 3
-        && !queuedPaperRolls[position.row()][position.column()]) {
-    accessiblePaperRolls.add(position);
-    queuedPaperRolls[position.row()][position.column()] = true;
-}
-```
 
 ## Diseño de clases
 
@@ -228,7 +136,7 @@ Contiene los detalles externos al dominio.
 
 ## Clases principales
 
-### `Main` - `dia4/src/main/java/Main.java`
+### `Main` - `Main.java`
 
 1. Decide de dónde leer el input. Si se pasa una ruta por argumentos, usa esa ruta; si no, busca el `input.txt` del módulo.
 2. Crea una fuente de datos concreta (`FileDiagramSource`) y la entrega al solver como abstracción (`DiagramSource`).
@@ -242,7 +150,7 @@ System.out.println("Parte 1: " + solver.solvePart1());
 System.out.println("Parte 2: " + solver.solvePart2());
 ```
 
-### `PrintingDepartmentSolver` - `dia4/src/main/java/application/PrintingDepartmentSolver.java`
+### `PrintingDepartmentSolver` - `application/PrintingDepartmentSolver.java`
 
 1. Recibe un `DiagramSource`, por lo que no necesita saber si el input viene de un fichero, de memoria o de otra fuente.
 2. Lee las líneas del diagrama y las convierte en un `PaperRollMap` usando `PaperRollMapParser`.
@@ -256,7 +164,7 @@ public int solvePart1() throws IOException {
 }
 ```
 
-### `PaperRollMapParser` - `dia4/src/main/java/application/PaperRollMapParser.java`
+### `PaperRollMapParser` - `application/PaperRollMapParser.java`
 
 1. Recibe las líneas crudas del fichero.
 2. Aplica `trim()` para eliminar espacios laterales y descarta líneas vacías.
@@ -274,7 +182,7 @@ for (String line : lines) {
 return new PaperRollMap(rows);
 ```
 
-### `GridPosition` - `dia4/src/main/java/domain/common/GridPosition.java`
+### `GridPosition` - `domain/common/GridPosition.java`
 
 1. Representa una coordenada concreta de la cuadrícula mediante fila y columna.
 2. Da nombre de dominio a esos dos enteros, evitando llamadas poco expresivas como `count(row, column)`.
@@ -287,7 +195,7 @@ if (map.isPaperRollAt(position)) {
 }
 ```
 
-### `PaperRollMap` - `dia4/src/main/java/domain/common/PaperRollMap.java`
+### `PaperRollMap` - `domain/common/PaperRollMap.java`
 
 1. Representa el mapa completo como una lista de filas inmutables.
 2. Valida que haya al menos una fila, que todas tengan la misma anchura y que solo aparezcan `.` y `@`.
@@ -308,7 +216,7 @@ public int countAdjacentPaperRolls(GridPosition position) {
 }
 ```
 
-### `AccessiblePaperRollCounterPart1` - `dia4/src/main/java/domain/part1/AccessiblePaperRollCounterPart1.java`
+### `AccessiblePaperRollCounterPart1` - `domain/part1/AccessiblePaperRollCounterPart1.java`
 
 1. Recorre todas las coordenadas del mapa usando dos bucles: uno para filas y otro para columnas.
 2. Para cada celda crea un `GridPosition` y comprueba si realmente contiene un rollo (`@`).
@@ -322,7 +230,7 @@ private boolean isAccessiblePaperRoll(PaperRollMap map, GridPosition position) {
 }
 ```
 
-### `RemovablePaperRollCounterPart2` - `dia4/src/main/java/domain/part2/RemovablePaperRollCounterPart2.java`
+### `RemovablePaperRollCounterPart2` - `domain/part2/RemovablePaperRollCounterPart2.java`
 
 1. Copia el mapa inicial a una matriz `boolean[][]` para saber qué rollos siguen presentes.
 2. Calcula una matriz `int[][]` con el número inicial de vecinos de cada rollo.
@@ -344,7 +252,7 @@ while (!accessiblePaperRolls.isEmpty()) {
 }
 ```
 
-### `DiagramSource` - `dia4/src/main/java/infrastructure/DiagramSource.java`
+### `DiagramSource` - `infrastructure/DiagramSource.java`
 
 1. Define la operación mínima que necesita la aplicación: obtener una lista de líneas.
 2. Actúa como frontera entre aplicación e infraestructura.
@@ -356,7 +264,7 @@ public interface DiagramSource {
 }
 ```
 
-### `FileDiagramSource` - `dia4/src/main/java/infrastructure/FileDiagramSource.java`
+### `FileDiagramSource` - `infrastructure/FileDiagramSource.java`
 
 1. Guarda la ruta del fichero recibida desde `Main`.
 2. Convierte esa ruta en un `Path`.

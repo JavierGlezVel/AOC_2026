@@ -60,129 +60,6 @@ ocupadas.
 El solver exacto se usa en los tests del ejemplo oficial. Esto evita aceptar casos
 pequeños que tienen área suficiente pero no admiten una colocación real.
 
-## Resolución detallada
-
-### Parte 1
-
-El problema comprueba en qué regiones de la granja caben los regalos requeridos.
-Cada forma de regalo está definida por celdas ocupadas, y cada región indica cuántas
-copias de cada forma debe colocar. La primera poda es por área: si la suma de áreas
-de todas las piezas requeridas supera el área de la región, no puede encajar.
-
-```java
-private int requiredArea(List<PresentShape> shapes, TreeRegion region) {
-    int area = 0;
-    for (int index = 0; index < shapes.size(); index++) {
-        area += shapes.get(index).area() * region.presentCounts().get(index);
-    }
-    return area;
-}
-```
-
-Para regiones pequeñas se hace una comprobación exacta con backtracking. Primero se
-generan todas las colocaciones posibles de cada pieza. Las rotaciones y reflexiones
-de una forma se normalizan para eliminar variantes duplicadas:
-
-```java
-public List<List<Cell>> variants() {
-    Set<List<Cell>> uniqueVariants = new HashSet<>();
-    for (int reflection : List.of(1, -1)) {
-        for (int rotation = 0; rotation < 4; rotation++) {
-            List<Cell> transformed = new ArrayList<>();
-            for (Cell cell : cells) {
-                int x = cell.x() * reflection;
-                int y = cell.y();
-                for (int turn = 0; turn < rotation; turn++) {
-                    int nextX = -y;
-                    y = x;
-                    x = nextX;
-                }
-                transformed.add(new Cell(x, y));
-            }
-            uniqueVariants.add(normalize(transformed));
-        }
-    }
-    return List.copyOf(uniqueVariants);
-}
-```
-
-Cada colocación se codifica como una máscara de bits. Dos piezas se solapan si sus
-máscaras tienen algún bit común:
-
-```java
-for (List<Cell> variant : shape.variants()) {
-    int variantWidth = variant.stream().mapToInt(Cell::x).max().orElseThrow() + 1;
-    int variantHeight = variant.stream().mapToInt(Cell::y).max().orElseThrow() + 1;
-    for (int y = 0; y <= region.height() - variantHeight; y++) {
-        for (int x = 0; x <= region.width() - variantWidth; x++) {
-            long mask = 0L;
-            for (Cell cell : variant) {
-                int bit = (y + cell.y()) * region.width() + x + cell.x();
-                mask |= 1L << bit;
-            }
-            placements.add(mask);
-        }
-    }
-}
-```
-
-El backtracking intenta colocar las piezas una a una. Si una colocación no se solapa
-con las celdas ocupadas, se avanza; si un estado ya falló antes, se reutiliza ese
-fallo con memoización:
-
-```java
-private boolean search(List<PiecePlacements> pieces,
-                       int pieceIndex,
-                       long occupiedCells,
-                       Map<SearchState, Boolean> memoizedFailures) {
-    if (pieceIndex == pieces.size()) {
-        return true;
-    }
-
-    SearchState state = new SearchState(pieceIndex, occupiedCells);
-    if (memoizedFailures.containsKey(state)) {
-        return false;
-    }
-
-    for (long placement : pieces.get(pieceIndex).placements()) {
-        if ((occupiedCells & placement) == 0
-                && search(pieces, pieceIndex + 1,
-                        occupiedCells | placement, memoizedFailures)) {
-            return true;
-        }
-    }
-
-    memoizedFailures.put(state, false);
-    return false;
-}
-```
-
-Para regiones grandes, la solución actual aplica una comprobación conservadora por
-área. Es una decisión práctica para mantener el coste acotado con el input actual.
-
-### Parte 2
-
-La parte 2 de este día no está implementada todavía en el proyecto. Cuando se añada
-el segundo enunciado, debería incorporarse como una nueva clase en `domain/part2`,
-reutilizando `TreeFarmPlan`, `PresentShape`, `TreeRegion` y las operaciones comunes
-de generación de variantes. Así se mantiene el mismo criterio de Abierto/Cerrado
-que en los días anteriores: añadir una regla nueva sin modificar la solución de la
-parte 1.
-
-Un punto de partida natural sería crear una calculadora específica:
-
-```java
-package domain.part2;
-
-import domain.common.TreeFarmPlan;
-
-public class FittingRegionCounterPart2 {
-    public long count(TreeFarmPlan plan) {
-        // aplicar aquí la regla nueva del segundo enunciado
-        throw new UnsupportedOperationException("Parte 2 pendiente");
-    }
-}
-```
 
 ## Uso de Streams
 
@@ -279,72 +156,72 @@ Contiene los detalles externos al dominio.
 
 ## Clases principales
 
-### `Main` - `dia12/src/main/java/Main.java`
+### `Main` - `Main.java`
 
 1. Calcula la ruta del fichero de entrada.
 2. Crea `FileTreeFarmSource` y `TreeFarmSolver`.
 3. Ejecuta la solución y muestra el resultado.
 
-### `TreeFarmSolver` - `dia12/src/main/java/application/TreeFarmSolver.java`
+### `TreeFarmSolver` - `application/TreeFarmSolver.java`
 
 1. Lee las líneas del input mediante `TreeFarmSource`.
 2. Convierte el texto en `TreeFarmPlan` con `TreeFarmParser`.
 3. Delega el conteo de regiones en `FittingRegionCounterPart1`.
 
-### `TreeFarmParser` - `dia12/src/main/java/application/TreeFarmParser.java`
+### `TreeFarmParser` - `application/TreeFarmParser.java`
 
 1. Separa la definición de piezas y la lista de regiones.
 2. Convierte cada pieza en una `PresentShape`.
 3. Construye un `TreeFarmPlan` con formas y regiones validadas.
 
-### `Cell` - `dia12/src/main/java/domain/common/Cell.java`
+### `Cell` - `domain/common/Cell.java`
 
 1. Representa una celda de una pieza mediante coordenadas.
 2. Permite desplazar coordenadas para normalizar formas.
 3. Se usa para generar variantes de cada regalo.
 
-### `PresentShape` - `dia12/src/main/java/domain/common/PresentShape.java`
+### `PresentShape` - `domain/common/PresentShape.java`
 
 1. Representa la forma de un regalo.
 2. Calcula sus variantes válidas de orientación.
 3. Expone el área ocupada por la pieza.
 
-### `TreeFarmPlan` - `dia12/src/main/java/domain/common/TreeFarmPlan.java`
+### `TreeFarmPlan` - `domain/common/TreeFarmPlan.java`
 
 1. Agrupa las formas disponibles y las regiones del huerto.
 2. Valida que existan formas y regiones.
 3. Copia las listas para que el plan no pueda modificarse desde fuera.
 
-### `TreeRegion` - `dia12/src/main/java/domain/common/TreeRegion.java`
+### `TreeRegion` - `domain/common/TreeRegion.java`
 
 1. Representa una región rectangular del huerto.
 2. Guarda cuántas piezas de cada tipo deben caber.
 3. Calcula el área disponible.
 
-### `FittingRegionCounterPart1` - `dia12/src/main/java/domain/part1/FittingRegionCounterPart1.java`
+### `FittingRegionCounterPart1` - `domain/part1/FittingRegionCounterPart1.java`
 
 1. Recorre todas las regiones del plan.
 2. Descarta regiones cuya área no puede contener las piezas necesarias.
 3. Para regiones pequeñas, usa búsqueda exacta con máscaras de bits.
 
-### `PiecePlacements` - `dia12/src/main/java/domain/part1/FittingRegionCounterPart1.java`
+### `PiecePlacements` - `domain/part1/FittingRegionCounterPart1.java`
 
 1. Guarda una pieza concreta que se debe colocar.
 2. Conserva todas sus colocaciones posibles dentro de una región.
 3. Ordena la búsqueda empezando por las piezas con menos alternativas.
 
-### `SearchState` - `dia12/src/main/java/domain/part1/FittingRegionCounterPart1.java`
+### `SearchState` - `domain/part1/FittingRegionCounterPart1.java`
 
 1. Representa el índice de pieza que se está intentando colocar.
 2. Guarda la máscara de celdas ya ocupadas.
 3. Permite memorizar estados fallidos durante la búsqueda.
 
-### `TreeFarmSource` - `dia12/src/main/java/infrastructure/TreeFarmSource.java`
+### `TreeFarmSource` - `infrastructure/TreeFarmSource.java`
 
 1. Define cómo obtener las líneas del input.
 2. Desacopla la aplicación del origen concreto de datos.
 
-### `FileTreeFarmSource` - `dia12/src/main/java/infrastructure/FileTreeFarmSource.java`
+### `FileTreeFarmSource` - `infrastructure/FileTreeFarmSource.java`
 
 1. Guarda la ruta del fichero de entrada.
 2. Lee sus líneas desde disco.
